@@ -8,6 +8,7 @@ type Input interface {
 	Name() string
 	Type() string
 	Value() string
+	Values() []string
 	Options() []string
 	Fill(val string) (value string, ok bool)
 	Required() bool
@@ -17,7 +18,7 @@ type Input interface {
 type anyInput struct {
 	name      string
 	inputType string
-	value     string
+	values    []string
 	required  bool
 	multiple  bool
 }
@@ -31,7 +32,14 @@ func (i anyInput) Type() string {
 }
 
 func (i anyInput) Value() string {
-	return i.value
+	if len(i.values) == 0 {
+		return ""
+	}
+	return i.values[0]
+}
+
+func (i anyInput) Values() []string {
+	return i.values
 }
 
 func (i anyInput) Required() bool {

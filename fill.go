@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"fmt"
 	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 )
 
 type Filler struct {
-	buttons   []Button
-	inputs    Inputs
+	form      *Form
 	values    url.Values
 	url       string
 	method    string
@@ -18,11 +19,54 @@ type Filler struct {
 	err       error
 }
 
-func NewFiller(inputs Inputs, buttons []Button) *Filler {
+func NewFiller(form *Form) *Filler {
+	values := make(url.Values)
+	prefill(values, form.Inputs)
 	return &Filler{
-		inputs:  inputs,
-		buttons: buttons,
-		values:  make(url.Values),
+		form:   form,
+		values: values,
+	}
+}
+
+func prefill(values url.Values, inputs Inputs) {
+	for name, input := range inputs {
+		for _, value := range input.Values() {
+			values.Add(name, value)
+		}
+	}
+}
+
+func (f *Filler) Request(filler *Filler) (*http.Request, error) {
+	form := f.form
+	switch form.Method {
+	case http.MethodPost:
+		switch form.ContentType {
+		case ContentTypeForm:
+			body, err := filler.Build()
+			if err != nil {
+				return nil, fmt.Errorf("Error building form request: %w", err)
+			}
+			r := httptest.NewRequest("POST", form.URL, bytes.NewReader(body))
+			r.Header.Add("Content-Type", form.ContentType)
+			return r, nil
+		case ContentTypeMultipart:
+			body, err := filler.BuildMultipart()
+			if err != nil {
+				return nil, fmt.Errorf("Error building multipart form request: %w", err)
+			}
+			r := httptest.NewRequest("POST", form.URL, bytes.NewReader(body))
+			r.Header.Add("Content-Type", form.ContentType)
+			return r, nil
+		default:
+			return nil, fmt.Errorf("Unknown content type: %s", form.ContentType)
+		}
+	default:
+		query, err := filler.BuildForm()
+		if err != nil {
+			return nil, err
+		}
+		url := fmt.Sprintf("%s?%s", form.URL, query)
+		return httptest.NewRequest("GET", url, nil), nil
 	}
 }
 
@@ -71,7 +115,7 @@ func (f *Filler) Click(buttonName string) *Filler {
 	}
 	ok := false
 	var b Button
-	for _, button := range f.buttons {
+	for _, button := range f.form.Buttons {
 		if button.Name == buttonName {
 			ok = true
 			b = button
@@ -87,8 +131,13 @@ func (f *Filler) Click(buttonName string) *Filler {
 	return f
 }
 
+func (f *Filler) Reset(name string) *Filler {
+	f.values.Del(name)
+	return f
+}
+
 func (f *Filler) Fill(name string, value string) *Filler {
-	input, ok := f.inputs[name]
+	input, ok := f.form.Inputs[name]
 	if !ok {
 		f.err = fmt.Errorf("Cannot find input name='%s'", name)
 		return f
@@ -108,7 +157,7 @@ func (f *Filler) Fill(name string, value string) *Filler {
 
 // Fill data for multipart request
 func (f *Filler) FillBytes(name string, bytes []byte) *Filler {
-	input, ok := f.inputs[name]
+	input, ok := f.form.Inputs[name]
 	if !ok {
 		f.err = fmt.Errorf("Cannot find input name='%s'", name)
 		return f

@@ -1,11 +1,8 @@
 package gosubmit
 
 import (
-	"bytes"
 	"fmt"
 	"io"
-	"net/http"
-	"net/http/httptest"
 	"regexp"
 	"strings"
 
@@ -40,44 +37,8 @@ type Form struct {
 var PatternEmail = regexp.MustCompile("[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$")
 var PatternNumber = regexp.MustCompile("^[0-9]+$")
 
-func (f *Form) Submit(name string) {
-
-}
-
 func (f *Form) Fill() *Filler {
-	return NewFiller(f.Inputs, f.Buttons)
-}
-
-func (f *Form) BuildRequest(filler *Filler) (*http.Request, error) {
-	switch f.Method {
-	case http.MethodPost:
-		switch f.ContentType {
-		case ContentTypeForm:
-			body, err := filler.Build()
-			if err != nil {
-				return nil, fmt.Errorf("Error building form request: %w", err)
-			}
-			r := httptest.NewRequest("POST", f.URL, bytes.NewReader(body))
-			r.Header.Add("Content-Type", f.ContentType)
-			return r, nil
-		case ContentTypeMultipart:
-			body, err := filler.BuildMultipart()
-			if err != nil {
-				return nil, fmt.Errorf("Error building multipart form request: %w", err)
-			}
-			r := httptest.NewRequest("POST", f.URL, bytes.NewReader(body))
-			r.Header.Add("Content-Type", f.ContentType)
-			return r, nil
-		default:
-			return nil, fmt.Errorf("Unknown content type: %s", f.ContentType)
-		}
-	default:
-		query, err := filler.BuildForm()
-		if err != nil {
-			return nil, err
-		}
-		return httptest.NewRequest("GET", f.URL+"?"+query, nil), nil
-	}
+	return NewFiller(f)
 }
 
 func findForms(n *html.Node) (forms Forms) {
@@ -96,14 +57,6 @@ func findForms(n *html.Node) (forms Forms) {
 	}
 	recursivelyFindForms(n)
 	return forms
-}
-
-func createAnyInput(n *html.Node) anyInput {
-	return anyInput{
-		name:      getAttr(n, "name"),
-		inputType: getAttr(n, "type"),
-		value:     getAttr(n, "value"),
-	}
 }
 
 func getCheckbox(inputs Inputs, name string) (checkbox Checkbox, ok bool) {
@@ -154,7 +107,7 @@ func createForm(n *html.Node) (form Form) {
 					anyInput: anyInput{
 						name:      name,
 						inputType: inputType,
-						value:     value,
+						values:    value,
 						required:  required,
 						multiple:  hasAttr(n, "multiple"),
 					},
@@ -162,10 +115,11 @@ func createForm(n *html.Node) (form Form) {
 				},
 			}
 		case "input":
+			value := getAttr(n, "value")
 			anyInput := anyInput{
 				name:      name,
 				inputType: inputType,
-				value:     getAttr(n, "value"),
+				values:    []string{value},
 				required:  required,
 			}
 			switch inputType {
@@ -196,10 +150,14 @@ func createForm(n *html.Node) (form Form) {
 							options:  []string{},
 						},
 					}
+					i.values = []string{}
 					inputs[name] = i
 				}
 				// TODO check if this works w/o pointers
-				i.options = append(i.options, getAttr(n, "value"))
+				i.options = append(i.options, value)
+				if hasAttr(n, "checked") {
+					i.values = append(i.values, value)
+				}
 			case "submit":
 				form.Buttons = append(form.Buttons, Button{
 					Name:  name,
@@ -226,7 +184,7 @@ func createForm(n *html.Node) (form Form) {
 				anyInput: anyInput{
 					name:      name,
 					inputType: "textarea",
-					value:     getText(n),
+					values:    []string{getText(n)},
 				},
 				validator: getPattern(n),
 			}
@@ -270,14 +228,14 @@ func getText(n *html.Node) string {
 	return b.String()
 }
 
-func findSelectOptions(n *html.Node) (selected string, options []string, ok bool) {
+func findSelectOptions(n *html.Node) (values []string, options []string, ok bool) {
 	ok = true
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		if c.Type == html.ElementNode && c.Data == "option" && !hasAttr(c, "disabled") {
 			value := getAttr(c, "value")
 			options = append(options, value)
 			if hasAttr(c, "selected") {
-				selected = value
+				values = append(values, value)
 			}
 		}
 	}
