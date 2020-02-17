@@ -182,7 +182,7 @@ func (f *Filler) BuildPost() ([]byte, error) {
 // Adds the submit buttons name=value combination to the form submission.
 // Useful when there are two or more buttons on a form and their values
 // make a difference on how the server's going to process the form data.
-func (f *Filler) Click(buttonName string) *Filler {
+func (f *Filler) Click(buttonValue string) *Filler {
 	if f.clicked == true {
 		f.setError(fmt.Errorf("Already clicked on one button"))
 		return f
@@ -190,14 +190,14 @@ func (f *Filler) Click(buttonName string) *Filler {
 	ok := false
 	var b Button
 	for _, button := range f.form.Buttons {
-		if button.Name == buttonName {
+		if button.Value == buttonValue {
 			ok = true
 			b = button
 			break
 		}
 	}
 	if !ok {
-		f.setError(fmt.Errorf("Cannot find button: %s", buttonName))
+		f.setError(fmt.Errorf("Cannot find button with value: '%s'", buttonValue))
 		return f
 	}
 	f.clicked = true

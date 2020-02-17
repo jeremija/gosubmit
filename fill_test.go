@@ -144,7 +144,9 @@ func TestParseFill_multipart(t *testing.T) {
 		Set("contact", form.GetOptionsFor("contact")[1]).
 		Set("email", "test@example.com").
 		Set("firstName", "Test").
+		Set("age", "33").
 		AddFile("profile", "picture.jpg", pictureContents).
+		Click("Save 1").
 		NewTestRequest()
 
 	if err != nil {
@@ -171,8 +173,11 @@ func TestParseFill_multipart(t *testing.T) {
 		"contact":   []string{"phone"},
 		"email":     []string{"test@example.com"},
 		"firstName": []string{"Test"},
+		"age":       []string{"33"},
 		"lastName":  []string{""},
 		"csrf":      []string{"1234"},
+		"post":      []string{"Big Text"},
+		"action":    []string{"Save 1"},
 	}
 
 	if !reflect.DeepEqual(expectedForm, r.PostForm) {

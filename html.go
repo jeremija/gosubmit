@@ -84,6 +84,12 @@ func getPattern(n *html.Node) *regexp.Regexp {
 	if p == "" {
 		return nil
 	}
+	if !strings.HasPrefix(p, "^") {
+		p = "^" + p
+	}
+	if !strings.HasSuffix(p, "$") {
+		p = p + "$"
+	}
 	return regexp.MustCompile(p)
 }
 
@@ -198,6 +204,7 @@ func createForm(n *html.Node) (form Form) {
 			}
 		case "button":
 			if inputType == "submit" {
+				logger.Println("FOUND BUTTON", name, getAttr(n, "value"))
 				form.Buttons = append(form.Buttons, Button{
 					Name:  name,
 					Value: getAttr(n, "value"),

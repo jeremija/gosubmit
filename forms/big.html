@@ -18,18 +18,23 @@
   <input type="checkbox" name="chk" value="subscribe-mail" checked required>
   <input type="checkbox" name="chk" value="subscribe-phone" required>
 
-  <input type="radio" name="contact" value="call" required>
+  <input type="radio" name="contact" value="call" required checked>
   <input type="radio" name="contact" value="phone" required>
 
   <input type="email" name="email" required>
-  <input type="text" name="firstName" value="something else">
+  <input type="text" name="firstName" value="something else" pattern="[A-Z][a-z]+">
   <input type="text" name="lastName">
+
+  <input type="number" name="age">
 
   <input type="file" name="profile">
 
+  <textarea name="post">Big Text</textarea>
+
   <input type="hidden" name="csrf" value="1234">
 
-  <input type="submit">
+  <button type="submit" name="action" value="Save 1">Save</button>
+  <input type="submit" name="action" value="Save 2">
 </form>
 
 </body>
