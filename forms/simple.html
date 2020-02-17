@@ -1,8 +1,12 @@
 <!DOCTYPE html>
 <html>
 <body>
-<!-- <form action="post" enctype="multipart/form-data"> -->
 <form method="get" name="simple-get">
+  <input type="text" name="firstName" required>
+  <input type="submit">
+</form>
+
+<form method="post" name="simple-post" action="/mytest">
   <input type="text" name="firstName" required>
   <input type="submit">
 </form>

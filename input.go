@@ -13,6 +13,7 @@ type Input interface {
 	Fill(val string) (value string, ok bool)
 	Required() bool
 	Multiple() bool
+	Multipart() bool
 }
 
 type anyInput struct {
@@ -50,6 +51,10 @@ func (i anyInput) Multiple() bool {
 	return i.multiple
 }
 
+func (i anyInput) Multipart() bool {
+	return false
+}
+
 func (i anyInput) Options() (values []string) {
 	return
 }
@@ -60,6 +65,10 @@ type FileInput struct {
 
 func (f FileInput) Fill(val string) (value string, ok bool) {
 	return "", false
+}
+
+func (f FileInput) Multipart() bool {
+	return true
 }
 
 type TextInput struct {
@@ -96,11 +105,10 @@ func (i inputWithOptions) Options() []string {
 
 func (i inputWithOptions) Fill(val string) (value string, ok bool) {
 	ok = false
-	value = val
 	for _, opt := range i.options {
 		if opt == val {
+			value = val
 			ok = true
-			break
 		}
 	}
 	return

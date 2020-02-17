@@ -13,17 +13,20 @@ import (
 const ContentTypeForm = "application/x-www-form-urlencoded"
 const ContentTypeMultipart = "multipart/form-data"
 
-func ParseWithURL(r io.Reader, url string) (Forms, error) {
+// Parse all formsr in the HTML document and set the default URL if <form
+// action="..."> attribute is missing
+func ParseWithURL(r io.Reader, defaultURL string) (Forms, error) {
 	forms, err := Parse(r)
 	for name, form := range forms {
 		if form.URL == "" {
-			form.URL = url
+			form.URL = defaultURL
 			forms[name] = form
 		}
 	}
 	return forms, err
 }
 
+// Parse all forms in the HTML document.
 func Parse(r io.Reader) (Forms, error) {
 	logger.Println("Parse() start")
 	n, err := html.Parse(r)
@@ -97,13 +100,13 @@ func createForm(n *html.Node) (form Form) {
 		required := hasAttr(n, "required")
 		switch n.Data {
 		case "select":
-			value, options, _ := findSelectOptions(n)
+			values, options, _ := findSelectOptions(n)
 			inputs[name] = Select{
 				inputWithOptions: inputWithOptions{
 					anyInput: anyInput{
 						name:      name,
 						inputType: inputType,
-						values:    value,
+						values:    values,
 						required:  required,
 						multiple:  hasAttr(n, "multiple"),
 					},
@@ -131,10 +134,13 @@ func createForm(n *html.Node) (form Form) {
 							options:  []string{},
 						},
 					}
-					inputs[name] = i
+					i.values = []string{}
 				}
-				// TODO check if this works w/o pointers
+				if hasAttr(n, "checked") {
+					i.values = append(i.values, value)
+				}
 				i.options = append(i.options, getAttr(n, "value"))
+				inputs[name] = i
 			case "file":
 				inputs[name] = FileInput{
 					anyInput: anyInput,
@@ -149,13 +155,13 @@ func createForm(n *html.Node) (form Form) {
 						},
 					}
 					i.values = []string{}
-					inputs[name] = i
 				}
-				// TODO check if this works w/o pointers
 				i.options = append(i.options, value)
 				if hasAttr(n, "checked") {
 					i.values = append(i.values, value)
 				}
+				// need to reassing because map has plain struct (no pointers)
+				inputs[name] = i
 			case "hidden":
 				inputs[name] = HiddenInput{
 					anyInput: anyInput,
