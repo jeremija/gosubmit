@@ -265,6 +265,10 @@ func (f *Filler) Set(name string, value string) *Filler {
 	return f.setOrAdd(name, value, false)
 }
 
+func (f *Filler) Get(name string) string {
+	return f.values.Get(name)
+}
+
 func (f *Filler) setOrAdd(name string, value string, add bool) *Filler {
 	input, ok := f.form.Inputs[name]
 	if !ok {

@@ -254,3 +254,21 @@ func TestFiller_Err(t *testing.T) {
 		t.Errorf("Expected an error '%s' but got '%s'", expected, err)
 	}
 }
+
+func TestFiller_Get(t *testing.T) {
+	f := mustOpen(t, "./forms/simple.html")
+	defer f.Close()
+	filler := gosubmit.Parse(f).FirstForm().Fill()
+	firstName := filler.Get("firstName")
+	if firstName != "" {
+		t.Errorf("firstName should be set to '', but was '%s'", firstName)
+	}
+	filler.Set("firstName", "bla")
+	firstName = filler.Get("firstName")
+	if firstName != "bla" {
+		t.Errorf("firstName should be set to 'bla', but was '%s'", firstName)
+	}
+	if err := filler.Err(); err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+}
