@@ -2,12 +2,14 @@ package gosubmit_test
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"reflect"
+	"regexp"
 	"testing"
 
 	"github.com/jeremija/gosubmit"
@@ -174,5 +176,81 @@ func TestParseFill_multipart(t *testing.T) {
 	fileData, err := ioutil.ReadAll(file)
 	if !bytes.Equal(pictureContents, fileData) {
 		t.Errorf("Picture contents do not match: %s vs %s", pictureContents, fileData)
+	}
+}
+
+func TestFiller_MissingField(t *testing.T) {
+	f := mustOpen(t, "./forms/simple.html")
+	defer f.Close()
+
+	_, err := gosubmit.ParseWithURL(f, "/test").FirstForm().
+		Fill().
+		NewRequest()
+
+	re := regexp.MustCompile("required field 'firstName' has no value")
+	if err == nil || !re.MatchString(err.Error()) {
+		t.Fatalf("Expected an error %s, but got: %s", re, err)
+	}
+}
+
+func TestFiller_Reset(t *testing.T) {
+	f := mustOpen(t, "./forms/simple.html")
+	defer f.Close()
+
+	_, err := gosubmit.ParseWithURL(f, "/test").FirstForm().
+		Fill().
+		Set("firstName", "a").
+		Reset("firstName").
+		BuildPost()
+
+	re := regexp.MustCompile("required field 'firstName' has no value")
+	if err == nil || !re.MatchString(err.Error()) {
+		t.Fatalf("Expected an error %s, but got: %s", re, err)
+	}
+}
+
+func TestFiller_IsRequiredField(t *testing.T) {
+	f := mustOpen(t, "./forms/simple.html")
+	defer f.Close()
+
+	isRequired := gosubmit.ParseWithURL(f, "/test").FirstForm().
+		Fill().
+		IsFieldRequired("firstName")
+	if isRequired == false {
+		t.Fatalf("Field 'firstName' is should be required, but is not")
+	}
+}
+
+func TestFiller_NewRequest(t *testing.T) {
+	f := mustOpen(t, "./forms/simple.html")
+	defer f.Close()
+
+	ctx := context.WithValue(context.Background(), "a", "b")
+	r, err := gosubmit.ParseWithURL(f, "/test").FirstForm().
+		Fill().
+		Set("firstName", "John").
+		WithContext(ctx).
+		NewRequest()
+
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
+
+	if r == nil {
+		t.Errorf("Request is nil")
+	}
+
+	if c := r.Context(); c != ctx {
+		t.Errorf("Context should be the same, but is not")
+	}
+}
+
+func TestFiller_Err(t *testing.T) {
+	f := mustOpen(t, "./forms/simple.html")
+	defer f.Close()
+	err := gosubmit.Parse(f).FirstForm().Fill().Set("a", "b").Err()
+	expected := "Cannot find input name='a'"
+	if err == nil || err.Error() != expected {
+		t.Errorf("Expected an error '%s' but got '%s'", expected, err)
 	}
 }

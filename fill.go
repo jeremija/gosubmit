@@ -2,7 +2,9 @@ package gosubmit
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +17,7 @@ type multipartFile struct {
 }
 
 type Filler struct {
+	context   context.Context
 	form      Form
 	values    url.Values
 	url       string
@@ -44,6 +47,11 @@ func (f *Filler) setError(err error) {
 	}
 }
 
+func (f *Filler) WithContext(ctx context.Context) *Filler {
+	f.context = ctx
+	return f
+}
+
 func (f *Filler) prefill(inputs Inputs) {
 	for name, input := range inputs {
 		if input.Multipart() {
@@ -64,20 +72,46 @@ func (f *Filler) IsFieldRequired(name string) bool {
 	return ok
 }
 
-// Builds a form depeding on the enctype and creates a new test request.
+func (f *Filler) createRequest(test bool, method string, url string, body io.Reader) (*http.Request, error) {
+	if test {
+		return httptest.NewRequest(method, url, body), nil
+	}
+	ctx := f.context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return http.NewRequestWithContext(ctx, method, url, body)
+}
+
 func (f *Filler) NewTestRequest() (*http.Request, error) {
+	return f.prepareRequest(true)
+}
+
+func (f *Filler) NewRequest() (*http.Request, error) {
+	return f.prepareRequest(false)
+}
+
+// Builds a form depeding on the enctype and creates a new test request.
+func (f *Filler) prepareRequest(test bool) (r *http.Request, err error) {
 	form := f.form
-	var r *http.Request
 	switch form.Method {
 	case http.MethodPost:
 		switch form.ContentType {
 		case ContentTypeForm:
 			body, _ := f.BuildPost()
-			r = httptest.NewRequest("POST", form.URL, bytes.NewReader(body))
+			r, err = f.createRequest(test, "POST", form.URL, bytes.NewReader(body))
+			if err != nil {
+				f.setError(fmt.Errorf("Error creating post request: %w", err))
+				break
+			}
 			r.Header.Add("Content-Type", form.ContentType)
 		case ContentTypeMultipart:
 			boundary, body, _ := f.BuildMultipart()
-			r = httptest.NewRequest("POST", form.URL, bytes.NewReader(body))
+			r, err = f.createRequest(test, "POST", form.URL, bytes.NewReader(body))
+			if err != nil {
+				f.setError(fmt.Errorf("Error creating multipart request: %w", err))
+				break
+			}
 			r.Header.Add("Content-Type",
 				fmt.Sprintf("%s; boundary=%s", ContentTypeMultipart, boundary))
 		default:
@@ -86,7 +120,10 @@ func (f *Filler) NewTestRequest() (*http.Request, error) {
 	default:
 		query, _ := f.BuildGet()
 		url := fmt.Sprintf("%s?%s", form.URL, query)
-		r = httptest.NewRequest("GET", url, nil)
+		r, err = f.createRequest(test, "GET", url, nil)
+		if err != nil {
+			f.setError(fmt.Errorf("Error creating get request: %w", err))
+		}
 	}
 
 	return r, f.err

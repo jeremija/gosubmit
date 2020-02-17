@@ -35,6 +35,7 @@ func (d Document) FirstForm() (form Form) {
 	if len(d.forms) > 0 {
 		return d.forms[0]
 	}
+	form.URL = "/"
 	form.setError(fmt.Errorf("No forms found"))
 	return
 }

@@ -62,3 +62,15 @@ func TestParse_GetOptionsFor(t *testing.T) {
 		t.Errorf("Expected to find no options")
 	}
 }
+
+func TestFirstForm(t *testing.T) {
+	var doc gosubmit.Document
+	_, err := doc.FirstForm().
+		Fill().
+		Set("a", "b").
+		NewTestRequest()
+
+	if err == nil || err.Error() != "No forms found" {
+		t.Errorf("Expected an error 'No forms found', but got %s", err)
+	}
+}
