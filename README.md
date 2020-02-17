@@ -57,6 +57,8 @@ Currently supported elements:
 - button[type=submit] with name and value
 - input[type=submit] with name and value
 
+If an input element is not on this list, it will default to text input.
+
 # License
 
 MIT
