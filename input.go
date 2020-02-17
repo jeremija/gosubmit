@@ -77,6 +77,14 @@ func (i TextInput) Fill(val string) (value string, ok bool) {
 	return
 }
 
+type HiddenInput struct {
+	anyInput
+}
+
+func (i HiddenInput) Fill(val string) (value string, ok bool) {
+	return i.Value(), false
+}
+
 type inputWithOptions struct {
 	anyInput
 	options []string
@@ -90,7 +98,7 @@ func (i inputWithOptions) Fill(val string) (value string, ok bool) {
 	ok = false
 	value = val
 	for _, opt := range i.options {
-		if opt == value {
+		if opt == val {
 			ok = true
 			break
 		}

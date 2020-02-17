@@ -3,6 +3,7 @@ package gosubmit
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"regexp"
 	"strings"
 
@@ -12,43 +13,37 @@ import (
 const ContentTypeForm = "application/x-www-form-urlencoded"
 const ContentTypeMultipart = "multipart/form-data"
 
+func ParseWithURL(r io.Reader, url string) (Forms, error) {
+	forms, err := Parse(r)
+	for name, form := range forms {
+		if form.URL == "" {
+			form.URL = url
+			forms[name] = form
+		}
+	}
+	return forms, err
+}
+
 func Parse(r io.Reader) (Forms, error) {
+	logger.Println("Parse() start")
 	n, err := html.Parse(r)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing html: %w", err)
 	}
 	forms := findForms(n)
+	logger.Printf("Parse() found %d forms", len(forms))
 	return forms, nil
-}
-
-type Forms map[string]Form
-type Inputs map[string]Input
-
-type Form struct {
-	// Enctype attribute, default should be application/x-www-form-urlencoded.
-	// For forms with file upload it should be multipart/form-data.
-	ContentType string
-	Inputs      Inputs
-	Method      string
-	URL         string
-	Buttons     []Button
 }
 
 var PatternEmail = regexp.MustCompile("[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$")
 var PatternNumber = regexp.MustCompile("^[0-9]+$")
 
-func (f *Form) Fill() *Filler {
-	return NewFiller(f)
-}
-
 func findForms(n *html.Node) (forms Forms) {
-	forms = make(Forms)
 
 	var recursivelyFindForms func(n *html.Node)
 	recursivelyFindForms = func(n *html.Node) {
 		if n.Type == html.ElementNode && n.Data == "form" {
-			name := getAttr(n, "name")
-			forms[name] = createForm(n)
+			forms = append(forms, createForm(n))
 			return
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
@@ -90,6 +85,7 @@ func getPattern(n *html.Node) *regexp.Regexp {
 }
 
 func createForm(n *html.Node) (form Form) {
+	logger.Println("Found <form>")
 	inputs := Inputs{}
 	var recursivelyFindInputs func(n *html.Node)
 	recursivelyFindInputs = func(n *html.Node) {
@@ -122,6 +118,8 @@ func createForm(n *html.Node) (form Form) {
 				values:    []string{value},
 				required:  required,
 			}
+			logger.Printf(
+				"Found <input type=\"%s\" name=\"%s\" value=\"%s\">", inputType, name, value)
 			switch inputType {
 			case "checkbox":
 				i, ok := getCheckbox(inputs, name)
@@ -157,6 +155,10 @@ func createForm(n *html.Node) (form Form) {
 				i.options = append(i.options, value)
 				if hasAttr(n, "checked") {
 					i.values = append(i.values, value)
+				}
+			case "hidden":
+				inputs[name] = HiddenInput{
+					anyInput: anyInput,
 				}
 			case "submit":
 				form.Buttons = append(form.Buttons, Button{
@@ -207,8 +209,12 @@ func createForm(n *html.Node) (form Form) {
 	if form.ContentType == "" {
 		form.ContentType = ContentTypeForm
 	}
-	form.Method = getAttr(n, "method")
+	form.Method = strings.ToUpper(getAttr(n, "method"))
+	if form.Method == "" {
+		form.Method = http.MethodGet
+	}
 	form.URL = getAttr(n, "action")
+	form.Attr = n.Attr
 	return
 }
 
@@ -242,8 +248,8 @@ func findSelectOptions(n *html.Node) (values []string, options []string, ok bool
 	return
 }
 
-func getAttr(n *html.Node, name string) (value string) {
-	value, _ = getAttrOK(n, name)
+func getAttr(n *html.Node, key string) (value string) {
+	value, _ = getAttrOK(n, key)
 	return
 }
 
@@ -256,13 +262,13 @@ func hasAttr(n *html.Node, name string) bool {
 	return false
 }
 
-func getAttrOK(n *html.Node, name string) (value string, ok bool) {
+func getAttrOK(n *html.Node, key string) (value string, ok bool) {
 	ok = false
 	for _, attr := range n.Attr {
-		if attr.Key == value {
+		if attr.Key == key {
 			ok = true
 			value = attr.Val
-			break
+			return
 		}
 	}
 	return
