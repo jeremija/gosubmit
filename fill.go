@@ -140,6 +140,9 @@ func (f *Filler) BuildMultipart() (boundary string, data []byte, err error) {
 	return
 }
 
+// Get the first error that occurred, if any. No need to call this if
+// NewTestRequest() or any of the methods with Build prefix are called because
+// they return it as well.
 func (f *Filler) Err() error {
 	return f.err
 }

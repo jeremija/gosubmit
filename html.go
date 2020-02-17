@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -36,6 +37,10 @@ func Parse(r io.Reader) (Forms, error) {
 	forms := findForms(n)
 	logger.Printf("Parse() found %d forms", len(forms))
 	return forms, nil
+}
+
+func ParseResponse(r *http.Response, url *url.URL) (Forms, error) {
+	return ParseWithURL(r.Body, url.EscapedPath())
 }
 
 var PatternEmail = regexp.MustCompile("[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$")
