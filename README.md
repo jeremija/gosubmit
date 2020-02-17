@@ -1,5 +1,7 @@
 # gosubmit
 
+[![Build Status](https://travis-ci.com/jeremija/gosubmit.svg?branch=master)](https://travis-ci.com/jeremija/gosubmit)
+
 Helps filling out plain html during testing. Will automatically take the
 existing values from the form so there is no need to manually set things like
 csrf tokens. Alerts about missing required fields, or when pattern validation
