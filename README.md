@@ -11,7 +11,7 @@ does not match. See [example_test.go](example_test.go) for a full example.
 package gosubmit_test
 
 import (
-  // TODO import app
+	// TODO import app
 	"github.com/jeremija/gosubmit"
 
 	"net/http"
