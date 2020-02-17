@@ -1,7 +1,6 @@
 package gosubmit_test
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -16,7 +15,6 @@ func Serve(w http.ResponseWriter, r *http.Request) {
 		username := r.FormValue("username")
 		password := r.FormValue("password")
 		csrf := r.FormValue("csrf")
-		fmt.Println(username, password, csrf)
 		if csrf == "1234" && username == "user" && password == "pass" {
 			w.Write([]byte("Welcome, " + username))
 			return
@@ -48,8 +46,7 @@ func TestLogin(t *testing.T) {
 
 	mux.ServeHTTP(w, r)
 
-	forms, _ := gosubmit.ParseResponse(w.Result(), r.URL)
-	form := forms[0]
+	form := gosubmit.ParseResponse(w.Result(), r.URL).FirstForm()
 
 	for _, test := range []struct {
 		code int
@@ -84,8 +81,7 @@ func TestFill_invalid(t *testing.T) {
 
 	mux.ServeHTTP(w, r)
 
-	forms, _ := gosubmit.ParseResponse(w.Result(), r.URL)
-	form := forms[0]
+	form := gosubmit.ParseResponse(w.Result(), r.URL).FirstForm()
 
 	_, err := form.Fill().
 		Set("invalid-field", "user").

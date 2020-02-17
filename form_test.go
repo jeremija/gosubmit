@@ -18,22 +18,22 @@ func (r *errReader) Read(b []byte) (n int, err error) {
 
 func TestParse_error(t *testing.T) {
 	r := &errReader{Reader: bytes.NewReader([]byte("</dflakugk>"))}
-	_, err := gosubmit.Parse(r)
-	t.Log(err)
-	if err == nil {
+	doc := gosubmit.Parse(r)
+	if doc.Err() == nil {
 		t.Error("Expected parsing error, but got nil")
 	}
 }
 
 func TestParse_Find(t *testing.T) {
 	r := bytes.NewReader([]byte("<!DOCTYPE html><html></html>"))
-	f, err := gosubmit.Parse(r)
-	if err != nil {
+	doc := gosubmit.Parse(r)
+	if err := doc.Err(); err != nil {
 		t.Fatalf("Unexpected Parse error: %s", err)
 	}
-	_, ok := f.Find("name", "test")
-	if ok == true {
-		t.Fatalf("Expected no forms to be found")
+	form := doc.FindForm("name", "test")
+	expected := "No form with attributes name='test' found"
+	if err := form.Err(); err == nil || err.Error() != expected {
+		t.Fatalf("Expected no error '%s' but got %s", expected, err)
 	}
 }
 
@@ -47,11 +47,11 @@ func TestParse_GetOptionsFor(t *testing.T) {
 </form>
 </html>
 `))
-	forms, err := gosubmit.Parse(r)
-	if err != nil {
+	doc := gosubmit.Parse(r)
+	if err := doc.Err(); err != nil {
 		t.Fatalf("Unexpected Parse error: %s", err)
 	}
-	form := forms[0]
+	form := doc.Forms()[0]
 	opts := form.GetOptionsFor("chk")
 	if len(opts) != 2 || (opts[0] != "one" && opts[1] != "two") {
 		t.Errorf("Expected to find two options")

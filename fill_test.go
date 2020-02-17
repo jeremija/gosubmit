@@ -34,15 +34,7 @@ func TestParseFill_simple_get(t *testing.T) {
 	f := mustOpen(t, "./forms/simple.html")
 	defer f.Close()
 
-	forms, err := gosubmit.ParseWithURL(f, "/test")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	form, ok := forms.Find("name", "simple-get")
-	if !ok {
-		t.Fatal("Could not find form with name=simple-get")
-	}
+	form := gosubmit.ParseWithURL(f, "/test").FindForm("name", "simple-get")
 
 	if form.URL != "/test" {
 		t.Fatalf("Expected form url to fallback to /test, but was %s", form.URL)
@@ -77,15 +69,7 @@ func TestParseFill_simple_post(t *testing.T) {
 	f := mustOpen(t, "./forms/simple.html")
 	defer f.Close()
 
-	forms, err := gosubmit.ParseWithURL(f, "/test")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	form, ok := forms.Find("name", "simple-post")
-	if !ok {
-		t.Fatal("Could not find form with name=simple-post")
-	}
+	form := gosubmit.ParseWithURL(f, "/test").FindForm("name", "simple-post")
 
 	if form.URL != "/mytest" {
 		t.Fatalf("Expected form url to fallback to /mytest, but was %s", form.URL)
@@ -127,12 +111,7 @@ func TestParseFill_multipart(t *testing.T) {
 	f := mustOpen(t, "./forms/big.html")
 	defer f.Close()
 
-	forms, err := gosubmit.Parse(f)
-	if err != nil {
-		t.Fatalf("Error parsing forms from big.html: %s", err)
-	}
-
-	form := forms[0]
+	form := gosubmit.Parse(f).FirstForm()
 
 	pictureContents := []byte("test-file")
 

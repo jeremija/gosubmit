@@ -15,7 +15,7 @@ type multipartFile struct {
 }
 
 type Filler struct {
-	form      *Form
+	form      Form
 	values    url.Values
 	url       string
 	method    string
@@ -26,7 +26,7 @@ type Filler struct {
 }
 
 // Creates a new form filler. It is preferred to use Form.Fill() instead.
-func NewFiller(form *Form) *Filler {
+func NewFiller(form Form) *Filler {
 	values := make(url.Values)
 	f := &Filler{
 		form:      form,

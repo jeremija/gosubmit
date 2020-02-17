@@ -16,50 +16,51 @@ const ContentTypeMultipart = "multipart/form-data"
 
 // Parse all formsr in the HTML document and set the default URL if <form
 // action="..."> attribute is missing
-func ParseWithURL(r io.Reader, defaultURL string) (Forms, error) {
-	forms, err := Parse(r)
-	for name, form := range forms {
+func ParseWithURL(r io.Reader, defaultURL string) (doc Document) {
+	doc = Parse(r)
+	for index, form := range doc.forms {
 		if form.URL == "" {
 			form.URL = defaultURL
-			forms[name] = form
+			doc.forms[index] = form
 		}
 	}
-	return forms, err
+	return
 }
 
 // Parse all forms in the HTML document.
-func Parse(r io.Reader) (Forms, error) {
-	logger.Println("Parse() start")
+func Parse(r io.Reader) (doc Document) {
 	n, err := html.Parse(r)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing html: %w", err)
+		doc.setError(fmt.Errorf("Error parsing html: %w", err))
+		return
 	}
-	forms := findForms(n)
-	logger.Printf("Parse() found %d forms", len(forms))
-	return forms, nil
+
+	doc = findForms(n)
+	return
 }
 
-func ParseResponse(r *http.Response, url *url.URL) (Forms, error) {
+func ParseResponse(r *http.Response, url *url.URL) Document {
 	return ParseWithURL(r.Body, url.EscapedPath())
 }
 
 var PatternEmail = regexp.MustCompile("[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$")
 var PatternNumber = regexp.MustCompile("^[0-9]+$")
 
-func findForms(n *html.Node) (forms Forms) {
-
-	var recursivelyFindForms func(n *html.Node)
-	recursivelyFindForms = func(n *html.Node) {
+func findForms(n *html.Node) (doc Document) {
+	var recursivelyFindDocument func(n *html.Node)
+	recursivelyFindDocument = func(n *html.Node) {
 		if n.Type == html.ElementNode && n.Data == "form" {
-			forms = append(forms, createForm(n))
+			form := createForm(n)
+			form.setError(doc.err)
+			doc.forms = append(doc.forms, form)
 			return
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			recursivelyFindForms(c)
+			recursivelyFindDocument(c)
 		}
 	}
-	recursivelyFindForms(n)
-	return forms
+	recursivelyFindDocument(n)
+	return doc
 }
 
 func getCheckbox(inputs Inputs, name string) (checkbox Checkbox, ok bool) {
@@ -99,7 +100,6 @@ func getPattern(n *html.Node) *regexp.Regexp {
 }
 
 func createForm(n *html.Node) (form Form) {
-	logger.Println("Found <form>")
 	inputs := Inputs{}
 	var recursivelyFindInputs func(n *html.Node)
 	recursivelyFindInputs = func(n *html.Node) {
@@ -132,8 +132,6 @@ func createForm(n *html.Node) (form Form) {
 				values:    []string{value},
 				required:  required,
 			}
-			logger.Printf(
-				"Found <input type=\"%s\" name=\"%s\" value=\"%s\">", inputType, name, value)
 			switch inputType {
 			case "checkbox":
 				i, ok := getCheckbox(inputs, name)
@@ -209,7 +207,6 @@ func createForm(n *html.Node) (form Form) {
 			}
 		case "button":
 			if inputType == "submit" {
-				logger.Println("FOUND BUTTON", name, getAttr(n, "value"))
 				form.Buttons = append(form.Buttons, Button{
 					Name:  name,
 					Value: getAttr(n, "value"),
