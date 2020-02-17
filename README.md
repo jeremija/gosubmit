@@ -30,16 +30,16 @@ func TestLogin(t *testing.T) {
 		Set("password", "password").
 		NewTestRequest()
 
-  if err != nil {
-    t.Fatalf("Error filling form: %s", err)
-  }
+	if err != nil {
+		t.Fatalf("Error filling form: %s", err)
+	}
 
 	w := httptest.NewRecorder()
-  app.ServeHTTP(w, r)
+	app.ServeHTTP(w, r)
 
-  if code := w.Result().StatusCode; code != http.StatusOK {
-    t.Errorf("Expected status ok but got %d", code)
-  }
+	if code := w.Result().StatusCode; code != http.StatusOK {
+		t.Errorf("Expected status ok but got %d", code)
+	}
 }
 ```
 
