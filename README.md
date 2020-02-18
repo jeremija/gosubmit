@@ -60,6 +60,21 @@ r, err := ParseResponse(w.Result(), r.URL).FirstForm().NewTestRequest(
 )
 ```
 
+# Testing Helpers
+
+To avoid checking for error in tests manually when creating a new test request
+, the value of `t *testing.T` can be provided:
+
+```golang
+r := ParseResponse(w.Result(), r.URL).FirstForm().Testing(t).NewTestRequest(
+	Autofill(),
+	Set("validatedURL", "https://www.example.com"),
+)
+```
+
+In case of any errors, the `t.Fatalf()` function will be called. `t.Helper()`
+is used appropriately to ensure line numbers reported by `go test` are correct.
+
 # Supported Elements
 
 - `input[type=checkbox]`
