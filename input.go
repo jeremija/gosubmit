@@ -13,17 +13,14 @@ const (
 	ISO8601Date   = "2006-01-02"
 )
 
-type InputOption struct {
-	Value    string
-	Required bool
-}
+var AutoFillFile = []byte{0xd, 0xe, 0xa, 0xd, 0xb, 0xe, 0xe, 0xf}
 
 type Input interface {
 	Name() string
 	Type() string
 	Value() string
 	Values() []string
-	Options() []InputOption
+	Options() []string
 	Fill(val string) (value string, ok bool)
 	Required() bool
 	Multiple() bool
@@ -36,7 +33,6 @@ type anyInput struct {
 	inputType string
 	values    []string
 	required  bool
-	multiple  bool
 }
 
 func (i anyInput) Name() string {
@@ -55,16 +51,6 @@ func (i anyInput) Value() string {
 }
 
 func (i anyInput) AutoFill() (values []string) {
-	opts := i.Options()
-	if len(opts) > 0 {
-		for _, opt := range opts {
-			if opt.Required {
-				values = append(values, opt.Value)
-			}
-		}
-		return
-	}
-
 	return []string{fmt.Sprintf("%s-%s", i.Name(), "test")}
 }
 
@@ -77,14 +63,14 @@ func (i anyInput) Required() bool {
 }
 
 func (i anyInput) Multiple() bool {
-	return i.multiple
+	return false
 }
 
 func (i anyInput) Multipart() bool {
 	return false
 }
 
-func (i anyInput) Options() (values []InputOption) {
+func (i anyInput) Options() (values []string) {
 	return
 }
 
@@ -98,6 +84,11 @@ func (f FileInput) Fill(val string) (value string, ok bool) {
 
 func (f FileInput) Multipart() bool {
 	return true
+}
+
+func (f FileInput) AutoFill() (values []string) {
+	values = append(values, string(AutoFillFile))
+	return
 }
 
 type TextInput struct {
@@ -118,6 +109,17 @@ func (i TextInput) Fill(val string) (value string, ok bool) {
 	return
 }
 
+func (i TextInput) AutoFill() (value []string) {
+	length := 10
+	if i.pattern != nil {
+		return
+	}
+	if i.minLength > 0 {
+		length = i.minLength
+	}
+	return []string{randomString(length)}
+}
+
 type HiddenInput struct {
 	anyInput
 }
@@ -128,19 +130,34 @@ func (i HiddenInput) Fill(val string) (value string, ok bool) {
 
 type inputWithOptions struct {
 	anyInput
-	options []InputOption
+	options  []string
+	multiple bool
 }
 
-func (i inputWithOptions) Options() []InputOption {
+func (i inputWithOptions) Options() []string {
 	return i.options
+}
+
+func (i inputWithOptions) Multiple() bool {
+	return i.multiple
 }
 
 func (i inputWithOptions) Fill(val string) (value string, ok bool) {
 	ok = false
 	for _, opt := range i.options {
-		if opt.Value == val {
+		if opt == val {
 			value = val
 			ok = true
+		}
+	}
+	return
+}
+
+func (i inputWithOptions) AutoFill() (values []string) {
+	for _, opt := range i.options {
+		values = append(values, opt)
+		if !i.multiple {
+			return
 		}
 	}
 	return

@@ -57,14 +57,14 @@ func (f *filler) apply(opts []Option) (err error) {
 
 func (f *filler) prefill(inputs Inputs) {
 	for name, input := range inputs {
+		if input.Required() {
+			f.required[name] = struct{}{}
+		}
 		if input.Multipart() {
 			continue
 		}
 		for _, value := range input.Values() {
 			f.values.Add(name, value)
-		}
-		if input.Required() {
-			f.required[name] = struct{}{}
 		}
 	}
 }
@@ -225,6 +225,31 @@ func (f *filler) BuildPost() (body []byte, err error) {
 	return
 }
 
+func AutoFill() Option {
+	return func(f *filler) error {
+		for requiredField, _ := range f.required {
+			value := f.values.Get(requiredField)
+			input := f.form.Inputs[requiredField]
+			if value == "" {
+				add := false
+				for _, value := range input.AutoFill() {
+					var opt Option
+					if input.Type() == InputTypeFile {
+						opt = AddFile(requiredField, "auto-filename", []byte(value))
+					} else {
+						opt = setOrAdd(requiredField, value, add)
+					}
+					if err := opt(f); err != nil {
+						return err
+					}
+					add = true
+				}
+			}
+		}
+		return nil
+	}
+}
+
 // Adds the submit buttons name=value combination to the form submission.
 // Useful when there are two or more buttons on a form and their values
 // make a difference on how the server's going to process the form data.
@@ -271,14 +296,6 @@ func Add(name string, value string) Option {
 // Set a name=value pair to the form and replace any set value(s).
 func Set(name string, value string) Option {
 	return setOrAdd(name, value, false)
-}
-
-func AddOption(name string, inputOption InputOption) Option {
-	return setOrAdd(name, inputOption.Value, true)
-}
-
-func SetOption(name string, inputOption InputOption) Option {
-	return setOrAdd(name, inputOption.Value, false)
 }
 
 func setOrAdd(name string, value string, add bool) Option {

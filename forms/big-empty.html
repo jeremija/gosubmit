@@ -6,28 +6,28 @@
   <select name="sel1">
     <option value="1">one</option>
     <option value="2">two</option>
-    <option value="3" selected>three</option>
+    <option value="3">three</option>
   </select>
 
   <select name="sel2" multiple required>
-    <option value="4" selected>four</option>
+    <option value="4">four</option>
     <option value="5">five</option>
-    <option value="6" selected>six</option>
+    <option value="6">six</option>
   </select>
 
-  <input type="checkbox" name="chk" value="subscribe-mail" checked required>
+  <input type="checkbox" name="chk" value="subscribe-mail" required>
   <input type="checkbox" name="chk" value="subscribe-phone" required>
 
-  <input type="radio" name="contact" value="call" required checked>
+  <input type="radio" name="contact" value="call" required>
   <input type="radio" name="contact" value="phone" required>
 
   <input type="email" name="email" required>
-  <input type="text" name="firstName" value="Something" pattern="[A-Z][a-z]+">
-  <input type="text" name="lastName">
+  <input type="text" name="firstName" pattern="[A-Z][a-z]+" required>
+  <input type="text" name="lastName" required>
 
-  <input type="number" name="age">
+  <input type="number" name="age" min="18" max="99" required>
 
-  <input type="file" name="profile">
+  <input type="file" name="profile" required>
 
   <textarea name="post">Big Text</textarea>
 

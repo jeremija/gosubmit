@@ -14,6 +14,24 @@ import (
 const ContentTypeForm = "application/x-www-form-urlencoded"
 const ContentTypeMultipart = "multipart/form-data"
 
+const (
+	ElementSelect   = "select"
+	ElementInput    = "input"
+	ElementButton   = "button"
+	ElementTextArea = "textarea"
+
+	InputTypeText     = "text"
+	InputTypeFile     = "file"
+	InputTypeCheckbox = "checkbox"
+	InputTypeRadio    = "radio"
+	InputTypeHidden   = "hidden"
+	InputTypeSubmit   = "submit"
+	InputTypeEmail    = "email"
+	InputTypeURL      = "url"
+	InputTypeDate     = "date"
+	InputTypeNumber   = "number"
+)
+
 // Parse all formsr in the HTML document and set the default URL if <form
 // action="..."> attribute is missing
 func ParseWithURL(r io.Reader, defaultURL string) (doc Document) {
@@ -119,9 +137,9 @@ func createForm(n *html.Node) (form Form) {
 						inputType: inputType,
 						values:    values,
 						required:  required,
-						multiple:  hasAttr(n, "multiple"),
 					},
-					options: options,
+					multiple: hasAttr(n, "multiple"),
+					options:  options,
 				},
 			}
 		case "input":
@@ -133,14 +151,14 @@ func createForm(n *html.Node) (form Form) {
 				required:  required,
 			}
 			switch inputType {
-			case "checkbox":
+			case InputTypeCheckbox:
 				i, ok := getCheckbox(inputs, name)
 				if !ok {
-					anyInput.multiple = true
 					i = Checkbox{
 						inputWithOptions: inputWithOptions{
 							anyInput: anyInput,
-							options:  []InputOption{},
+							options:  []string{},
+							multiple: true,
 						},
 					}
 					i.values = []string{}
@@ -148,57 +166,57 @@ func createForm(n *html.Node) (form Form) {
 				if hasAttr(n, "checked") {
 					i.values = append(i.values, value)
 				}
-				i.options = append(i.options, InputOption{
-					Value:    value,
-					Required: hasAttr(n, "required"),
-				})
+				i.options = append(i.options, value)
+				i.required = i.required || hasAttr(n, "required")
 				inputs[name] = i
-			case "file":
+			case InputTypeFile:
 				inputs[name] = FileInput{
 					anyInput: anyInput,
 				}
-			case "radio":
+			case InputTypeRadio:
 				i, ok := getRadio(inputs, name)
 				if !ok {
 					i = Radio{
 						inputWithOptions: inputWithOptions{
 							anyInput: anyInput,
-							options:  []InputOption{},
+							options:  []string{},
 						},
 					}
 					i.values = []string{}
 				}
-				i.options = append(i.options, InputOption{
-					Value:    value,
-					Required: hasAttr(n, "required"),
-				})
+				i.options = append(i.options, value)
+				i.required = i.required || hasAttr(n, "required")
 				if hasAttr(n, "checked") {
 					i.values = append(i.values, value)
 				}
 				// need to reassing because map has plain struct (no pointers)
 				inputs[name] = i
-			case "hidden":
+			case InputTypeHidden:
 				inputs[name] = HiddenInput{
 					anyInput: anyInput,
 				}
-			case "submit":
+			case InputTypeSubmit:
 				form.Buttons = append(form.Buttons, Button{
 					Name:  name,
 					Value: getAttr(n, "value"),
 				})
-			case "email":
+			case InputTypeEmail:
+				textInput := createTextInput(anyInput, n)
+				textInput.pattern = PatternEmail
 				inputs[name] = EmailInput{
-					TextInput: createTextInput(anyInput, n),
+					TextInput: textInput,
 				}
-			case "url":
+			case InputTypeURL:
+				textInput := createTextInput(anyInput, n)
+				textInput.pattern = PatternURL
 				inputs[name] = URLInput{
-					TextInput: createTextInput(anyInput, n),
+					TextInput: textInput,
 				}
-			case "date":
+			case InputTypeDate:
 				inputs[name] = DateInput{
 					anyInput: anyInput,
 				}
-			case "number":
+			case InputTypeNumber:
 				inputs[name] = NumberInput{
 					anyInput: anyInput,
 					min:      atoi(getAttr(n, "min")),
@@ -207,7 +225,7 @@ func createForm(n *html.Node) (form Form) {
 			default:
 				inputs[name] = createTextInput(anyInput, n)
 			}
-		case "textarea":
+		case ElementTextArea:
 			inputs[name] = TextInput{
 				anyInput: anyInput{
 					name:      name,
@@ -217,7 +235,7 @@ func createForm(n *html.Node) (form Form) {
 				minLength: atoi(getAttr(n, "minlength")),
 				maxLength: atoi(getAttr(n, "maxlength")),
 			}
-		case "button":
+		case ElementButton:
 			if inputType == "submit" {
 				form.Buttons = append(form.Buttons, Button{
 					Name:  name,
@@ -261,13 +279,12 @@ func getText(n *html.Node) string {
 	return b.String()
 }
 
-func findSelectOptions(n *html.Node) (values []string, options []InputOption, ok bool) {
+func findSelectOptions(n *html.Node) (values []string, options []string, ok bool) {
 	ok = true
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		if c.Type == html.ElementNode && c.Data == "option" && !hasAttr(c, "disabled") {
 			value := getAttr(c, "value")
-			required := hasAttr(c, "required")
-			options = append(options, InputOption{Value: value, Required: required})
+			options = append(options, value)
 			if hasAttr(c, "selected") {
 				values = append(values, value)
 			}
