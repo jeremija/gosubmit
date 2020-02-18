@@ -53,12 +53,14 @@ r, err := ParseResponse(w.Result(), r.URL).FirstForm().NewTestRequest(
 Elements that include a pattern attribute for validation will not be autofilled
 and have to be filled in manually. For example:
 
+```golang
 r, err := ParseResponse(w.Result(), r.URL).FirstForm().NewTestRequest(
 	Autofill(),
 	Set("validatedURL", "https://www.example.com"),
 )
+```
 
-# Supported elements:
+# Supported Elements
 
 - `input[type=checkbox]`
 - `input[type=date]`
