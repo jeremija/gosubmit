@@ -42,21 +42,37 @@ func TestLogin(t *testing.T) {
 }
 ```
 
-Currently supported elements:
+Autofilling of all required input fields is supported:
 
-- input[type=checkbox]
-- input[type=date]
-- input[type=email]
-- input[type=hidden]
-- input[type=number]
-- input[type=radio]
-- input[type=text]
-- input[type=url]
-- textarea
-- select
-- select[multiple]
-- button[type=submit] with name and value
-- input[type=submit] with name and value
+```golang
+r, err := ParseResponse(w.Result(), r.URL).FirstForm().NewTestRequest(
+	Autofill(),
+)
+```
+
+Elements that include a pattern attribute for validation will not be autofilled
+and have to be filled in manually. For example:
+
+r, err := ParseResponse(w.Result(), r.URL).FirstForm().NewTestRequest(
+	Autofill(),
+	Set("validatedURL", "https://www.example.com"),
+)
+
+# Supported elements:
+
+- `input[type=checkbox]`
+- `input[type=date]`
+- `input[type=email]`
+- `input[type=hidden]`
+- `input[type=number]`
+- `input[type=radio]`
+- `input[type=text]`
+- `input[type=url]`
+- `textarea`
+- `select`
+- `select[multiple]`
+- `button[type=submit]` with name and value
+- `input[type=submit]` with name and value
 
 If an input element is not on this list, it will default to text input.
 

@@ -11,6 +11,7 @@ const (
 	AutoFillEmail = "test@example.com"
 	AutoFillURL   = "https://www.example.com"
 	ISO8601Date   = "2006-01-02"
+	AutoFillDate  = ISO8601Date
 )
 
 var AutoFillFile = []byte{0xd, 0xe, 0xa, 0xd, 0xb, 0xe, 0xe, 0xf}
@@ -51,7 +52,7 @@ func (i anyInput) Value() string {
 }
 
 func (i anyInput) AutoFill() (values []string) {
-	return []string{fmt.Sprintf("%s-%s", i.Name(), "test")}
+	return []string{fmt.Sprintf("%s-%s", i.Name(), "autofill")}
 }
 
 func (i anyInput) Values() []string {
@@ -116,8 +117,9 @@ func (i TextInput) AutoFill() (value []string) {
 	}
 	if i.minLength > 0 {
 		length = i.minLength
+		return []string{randomString(length)}
 	}
-	return []string{randomString(length)}
+	return i.anyInput.AutoFill()
 }
 
 type HiddenInput struct {
@@ -213,7 +215,7 @@ func (i DateInput) Fill(val string) (value string, ok bool) {
 }
 
 func (i DateInput) AutoFill() []string {
-	return []string{ISO8601Date}
+	return []string{AutoFillDate}
 }
 
 type Checkbox struct {
