@@ -127,11 +127,11 @@ func TestNewTestRequest_multipart(t *testing.T) {
 	pictureContents := []byte("test-file")
 
 	r, err := form.NewTestRequest(
-		Set("sel1", form.GetOptionsFor("sel1")[0]),
+		SetOption("sel1", form.GetOptionsFor("sel1")[0]),
 		Add("sel2", "5"),
 		// Add("chk", form.GetOptionsFor("chk")[0]),
-		Add("chk", form.GetOptionsFor("chk")[1]),
-		Set("contact", form.GetOptionsFor("contact")[1]),
+		AddOption("chk", form.GetOptionsFor("chk")[1]),
+		SetOption("contact", form.GetOptionsFor("contact")[1]),
 		Set("email", "test@example.com"),
 		Set("firstName", "Test"),
 		Set("age", "33"),
@@ -195,7 +195,7 @@ func TestMultipartParams_invalid(t *testing.T) {
 	form := Parse(f).FirstForm()
 
 	_, _, err := form.MultipartParams(
-		Set("sel1", form.GetOptionsFor("sel1")[0]),
+		SetOption("sel1", form.GetOptionsFor("sel1")[0]),
 	)
 
 	re := regexp.MustCompile("Required field.*has no value")

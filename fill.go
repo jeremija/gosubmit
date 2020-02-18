@@ -273,9 +273,13 @@ func Set(name string, value string) Option {
 	return setOrAdd(name, value, false)
 }
 
-// func (f *filler) Get(name string) string {
-// 	return f.values.Get(name)
-// }
+func AddOption(name string, inputOption InputOption) Option {
+	return setOrAdd(name, inputOption.Value, true)
+}
+
+func SetOption(name string, inputOption InputOption) Option {
+	return setOrAdd(name, inputOption.Value, false)
+}
 
 func setOrAdd(name string, value string, add bool) Option {
 	return func(f *filler) error {

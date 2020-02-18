@@ -144,7 +144,7 @@ func (f Form) PostParams(opts ...Option) ([]byte, error) {
 
 // Returns a list of available input values for elements with options
 // (checkbox, radio or select).
-func (f *Form) GetOptionsFor(name string) (options []string) {
+func (f *Form) GetOptionsFor(name string) (options []InputOption) {
 	input, ok := f.Inputs[name]
 	if !ok {
 		return

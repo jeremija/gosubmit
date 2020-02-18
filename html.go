@@ -44,7 +44,7 @@ func ParseResponse(r *http.Response, url *url.URL) Document {
 }
 
 var PatternEmail = regexp.MustCompile("[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$")
-var PatternNumber = regexp.MustCompile("^[0-9]+$")
+var PatternURL = regexp.MustCompile("^https?://.+")
 
 func findForms(n *html.Node) (doc Document) {
 	var recursivelyFindDocument func(n *html.Node)
@@ -85,10 +85,10 @@ func getRadio(inputs Inputs, name string) (radio Radio, ok bool) {
 	return
 }
 
-func getPattern(n *html.Node) *regexp.Regexp {
+func getPattern(n *html.Node, defaultPattern *regexp.Regexp) *regexp.Regexp {
 	p := getAttr(n, "pattern")
 	if p == "" {
-		return nil
+		return defaultPattern
 	}
 	if !strings.HasPrefix(p, "^") {
 		p = "^" + p
@@ -140,7 +140,7 @@ func createForm(n *html.Node) (form Form) {
 					i = Checkbox{
 						inputWithOptions: inputWithOptions{
 							anyInput: anyInput,
-							options:  []string{},
+							options:  []InputOption{},
 						},
 					}
 					i.values = []string{}
@@ -148,7 +148,10 @@ func createForm(n *html.Node) (form Form) {
 				if hasAttr(n, "checked") {
 					i.values = append(i.values, value)
 				}
-				i.options = append(i.options, getAttr(n, "value"))
+				i.options = append(i.options, InputOption{
+					Value:    value,
+					Required: hasAttr(n, "required"),
+				})
 				inputs[name] = i
 			case "file":
 				inputs[name] = FileInput{
@@ -160,12 +163,15 @@ func createForm(n *html.Node) (form Form) {
 					i = Radio{
 						inputWithOptions: inputWithOptions{
 							anyInput: anyInput,
-							options:  []string{},
+							options:  []InputOption{},
 						},
 					}
 					i.values = []string{}
 				}
-				i.options = append(i.options, value)
+				i.options = append(i.options, InputOption{
+					Value:    value,
+					Required: hasAttr(n, "required"),
+				})
 				if hasAttr(n, "checked") {
 					i.values = append(i.values, value)
 				}
@@ -181,20 +187,25 @@ func createForm(n *html.Node) (form Form) {
 					Value: getAttr(n, "value"),
 				})
 			case "email":
-				inputs[name] = TextInput{
+				inputs[name] = EmailInput{
+					TextInput: createTextInput(anyInput, n),
+				}
+			case "url":
+				inputs[name] = URLInput{
+					TextInput: createTextInput(anyInput, n),
+				}
+			case "date":
+				inputs[name] = DateInput{
 					anyInput: anyInput,
-					pattern:  PatternEmail,
 				}
 			case "number":
-				inputs[name] = TextInput{
+				inputs[name] = NumberInput{
 					anyInput: anyInput,
-					pattern:  PatternNumber,
+					min:      atoi(getAttr(n, "min")),
+					max:      atoi(getAttr(n, "max")),
 				}
 			default:
-				inputs[name] = TextInput{
-					anyInput: anyInput,
-					pattern:  getPattern(n),
-				}
+				inputs[name] = createTextInput(anyInput, n)
 			}
 		case "textarea":
 			inputs[name] = TextInput{
@@ -203,7 +214,8 @@ func createForm(n *html.Node) (form Form) {
 					inputType: "textarea",
 					values:    []string{getText(n)},
 				},
-				pattern: getPattern(n),
+				minLength: atoi(getAttr(n, "minlength")),
+				maxLength: atoi(getAttr(n, "maxlength")),
 			}
 		case "button":
 			if inputType == "submit" {
@@ -249,12 +261,13 @@ func getText(n *html.Node) string {
 	return b.String()
 }
 
-func findSelectOptions(n *html.Node) (values []string, options []string, ok bool) {
+func findSelectOptions(n *html.Node) (values []string, options []InputOption, ok bool) {
 	ok = true
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		if c.Type == html.ElementNode && c.Data == "option" && !hasAttr(c, "disabled") {
 			value := getAttr(c, "value")
-			options = append(options, value)
+			required := hasAttr(c, "required")
+			options = append(options, InputOption{Value: value, Required: required})
 			if hasAttr(c, "selected") {
 				values = append(values, value)
 			}
@@ -287,4 +300,13 @@ func getAttrOK(n *html.Node, key string) (value string, ok bool) {
 		}
 	}
 	return
+}
+
+func createTextInput(anyInput anyInput, n *html.Node) TextInput {
+	return TextInput{
+		anyInput:  anyInput,
+		pattern:   getPattern(n, nil),
+		minLength: atoi(getAttr(n, "minlength")),
+		maxLength: atoi(getAttr(n, "maxlength")),
+	}
 }

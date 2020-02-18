@@ -44,12 +44,14 @@ func TestLogin(t *testing.T) {
 
 Currently supported elements:
 
-- input[type=text]
-- input[type=number]
-- input[type=email]
 - input[type=checkbox]
-- input[type=radio]
+- input[type=date]
+- input[type=email]
 - input[type=hidden]
+- input[type=number]
+- input[type=radio]
+- input[type=text]
+- input[type=url]
 - textarea
 - select
 - select[multiple]

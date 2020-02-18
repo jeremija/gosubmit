@@ -43,7 +43,7 @@ func TestParse_GetOptionsFor(t *testing.T) {
 <body>
 <form>
 <input type="checkbox" name="chk" value="one">
-<input type="checkbox" name="chk" value="two">
+<input type="checkbox" name="chk" value="two" required>
 </form>
 </html>
 `))
@@ -53,8 +53,12 @@ func TestParse_GetOptionsFor(t *testing.T) {
 	}
 	form := doc.Forms()[0]
 	opts := form.GetOptionsFor("chk")
-	if len(opts) != 2 || (opts[0] != "one" && opts[1] != "two") {
+	if len(opts) != 2 || opts[0].Value != "one" || opts[1].Value != "two" {
 		t.Errorf("Expected to find two options")
+	}
+
+	if len(opts) != 2 || opts[0].Required != false || opts[1].Required != true {
+		t.Error("Expected to find two options, first required and second not")
 	}
 
 	opts = form.GetOptionsFor("something-else")
