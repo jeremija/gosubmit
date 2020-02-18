@@ -2,6 +2,7 @@ package gosubmit
 
 import (
 	"fmt"
+	"net/http"
 
 	"golang.org/x/net/html"
 )
@@ -70,14 +71,79 @@ type Form struct {
 	Buttons []Button
 }
 
-// Creates a new form filler that can be used to fill (and validate) the form
-// data before submission.
-func (f Form) Fill() *Filler {
-	filler := NewFiller(f)
-	filler.setError(f.err)
-	return filler
+// Returns true if field is required, false otherwise.
+func (f Form) IsRequired(name string) bool {
+	input, ok := f.Inputs[name]
+	return ok && input.Required()
 }
 
+func (f Form) newFiller(opts []Option) (filler *filler, err error) {
+	if f.err != nil {
+		err = f.err
+		return
+	}
+	filler, err = newFiller(f, opts)
+	return
+}
+
+// Fills the form and returns an error if there was an error. Useful for
+// testing.
+func (f Form) Validate(opts ...Option) error {
+	_, err := f.newFiller(opts)
+	return err
+}
+
+// Fills the form and returns a new request. If there was any error in the
+// parsing or if the form was filled incorrectly, it will return an error.
+func (f Form) NewRequest(opts ...Option) (*http.Request, error) {
+	filler, err := f.newFiller(opts)
+	if err != nil {
+		return nil, err
+	}
+	return filler.NewRequest()
+}
+
+// Fills the form and returns a new test request. If there was any error in the
+// parsing or if the form was filled incorrectly, it will return an error.
+func (f Form) NewTestRequest(opts ...Option) (*http.Request, error) {
+	filler, err := f.newFiller(opts)
+	if err != nil {
+		return nil, err
+	}
+	return filler.NewTestRequest()
+}
+
+// Fills the form and returns parameters for a multipart request. If there was
+// any error in the parsing or if the form was filled incorrectly, it will
+// return an error.
+func (f Form) MultipartParams(opts ...Option) (boundary string, data []byte, err error) {
+	filler, err := f.newFiller(opts)
+	if err != nil {
+		return "", nil, err
+	}
+	return filler.BuildMultipart()
+}
+
+// Fills the form and returns query parameters for a GET request.
+func (f Form) GetParams(opts ...Option) (string, error) {
+	filler, err := f.newFiller(opts)
+	if err != nil {
+		return "", err
+	}
+	return filler.BuildGet()
+}
+
+// Fills the form and returns body for a POST request.
+func (f Form) PostParams(opts ...Option) ([]byte, error) {
+	filler, err := f.newFiller(opts)
+	if err != nil {
+		return nil, err
+	}
+	return filler.BuildPost()
+}
+
+// Returns a list of available input values for elements with options
+// (checkbox, radio or select).
 func (f *Form) GetOptionsFor(name string) (options []string) {
 	input, ok := f.Inputs[name]
 	if !ok {

@@ -14,6 +14,24 @@ import (
 const ContentTypeForm = "application/x-www-form-urlencoded"
 const ContentTypeMultipart = "multipart/form-data"
 
+const (
+	ElementSelect   = "select"
+	ElementInput    = "input"
+	ElementButton   = "button"
+	ElementTextArea = "textarea"
+
+	InputTypeText     = "text"
+	InputTypeFile     = "file"
+	InputTypeCheckbox = "checkbox"
+	InputTypeRadio    = "radio"
+	InputTypeHidden   = "hidden"
+	InputTypeSubmit   = "submit"
+	InputTypeEmail    = "email"
+	InputTypeURL      = "url"
+	InputTypeDate     = "date"
+	InputTypeNumber   = "number"
+)
+
 // Parse all formsr in the HTML document and set the default URL if <form
 // action="..."> attribute is missing
 func ParseWithURL(r io.Reader, defaultURL string) (doc Document) {
@@ -44,7 +62,7 @@ func ParseResponse(r *http.Response, url *url.URL) Document {
 }
 
 var PatternEmail = regexp.MustCompile("[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}$")
-var PatternNumber = regexp.MustCompile("^[0-9]+$")
+var PatternURL = regexp.MustCompile("^https?://.+")
 
 func findForms(n *html.Node) (doc Document) {
 	var recursivelyFindDocument func(n *html.Node)
@@ -85,10 +103,10 @@ func getRadio(inputs Inputs, name string) (radio Radio, ok bool) {
 	return
 }
 
-func getPattern(n *html.Node) *regexp.Regexp {
+func getPattern(n *html.Node, defaultPattern *regexp.Regexp) *regexp.Regexp {
 	p := getAttr(n, "pattern")
 	if p == "" {
-		return nil
+		return defaultPattern
 	}
 	if !strings.HasPrefix(p, "^") {
 		p = "^" + p
@@ -119,9 +137,9 @@ func createForm(n *html.Node) (form Form) {
 						inputType: inputType,
 						values:    values,
 						required:  required,
-						multiple:  hasAttr(n, "multiple"),
 					},
-					options: options,
+					multiple: hasAttr(n, "multiple"),
+					options:  options,
 				},
 			}
 		case "input":
@@ -133,14 +151,14 @@ func createForm(n *html.Node) (form Form) {
 				required:  required,
 			}
 			switch inputType {
-			case "checkbox":
+			case InputTypeCheckbox:
 				i, ok := getCheckbox(inputs, name)
 				if !ok {
-					anyInput.multiple = true
 					i = Checkbox{
 						inputWithOptions: inputWithOptions{
 							anyInput: anyInput,
 							options:  []string{},
+							multiple: true,
 						},
 					}
 					i.values = []string{}
@@ -148,13 +166,14 @@ func createForm(n *html.Node) (form Form) {
 				if hasAttr(n, "checked") {
 					i.values = append(i.values, value)
 				}
-				i.options = append(i.options, getAttr(n, "value"))
+				i.options = append(i.options, value)
+				i.required = i.required || hasAttr(n, "required")
 				inputs[name] = i
-			case "file":
+			case InputTypeFile:
 				inputs[name] = FileInput{
 					anyInput: anyInput,
 				}
-			case "radio":
+			case InputTypeRadio:
 				i, ok := getRadio(inputs, name)
 				if !ok {
 					i = Radio{
@@ -166,46 +185,57 @@ func createForm(n *html.Node) (form Form) {
 					i.values = []string{}
 				}
 				i.options = append(i.options, value)
+				i.required = i.required || hasAttr(n, "required")
 				if hasAttr(n, "checked") {
 					i.values = append(i.values, value)
 				}
 				// need to reassing because map has plain struct (no pointers)
 				inputs[name] = i
-			case "hidden":
+			case InputTypeHidden:
 				inputs[name] = HiddenInput{
 					anyInput: anyInput,
 				}
-			case "submit":
+			case InputTypeSubmit:
 				form.Buttons = append(form.Buttons, Button{
 					Name:  name,
 					Value: getAttr(n, "value"),
 				})
-			case "email":
-				inputs[name] = TextInput{
-					anyInput:  anyInput,
-					validator: PatternEmail,
+			case InputTypeEmail:
+				textInput := createTextInput(anyInput, n)
+				textInput.pattern = PatternEmail
+				inputs[name] = EmailInput{
+					TextInput: textInput,
 				}
-			case "number":
-				inputs[name] = TextInput{
-					anyInput:  anyInput,
-					validator: PatternNumber,
+			case InputTypeURL:
+				textInput := createTextInput(anyInput, n)
+				textInput.pattern = PatternURL
+				inputs[name] = URLInput{
+					TextInput: textInput,
+				}
+			case InputTypeDate:
+				inputs[name] = DateInput{
+					anyInput: anyInput,
+				}
+			case InputTypeNumber:
+				inputs[name] = NumberInput{
+					anyInput: anyInput,
+					min:      atoi(getAttr(n, "min")),
+					max:      atoi(getAttr(n, "max")),
 				}
 			default:
-				inputs[name] = TextInput{
-					anyInput:  anyInput,
-					validator: getPattern(n),
-				}
+				inputs[name] = createTextInput(anyInput, n)
 			}
-		case "textarea":
+		case ElementTextArea:
 			inputs[name] = TextInput{
 				anyInput: anyInput{
 					name:      name,
 					inputType: "textarea",
 					values:    []string{getText(n)},
 				},
-				validator: getPattern(n),
+				minLength: atoi(getAttr(n, "minlength")),
+				maxLength: atoi(getAttr(n, "maxlength")),
 			}
-		case "button":
+		case ElementButton:
 			if inputType == "submit" {
 				form.Buttons = append(form.Buttons, Button{
 					Name:  name,
@@ -287,4 +317,13 @@ func getAttrOK(n *html.Node, key string) (value string, ok bool) {
 		}
 	}
 	return
+}
+
+func createTextInput(anyInput anyInput, n *html.Node) TextInput {
+	return TextInput{
+		anyInput:  anyInput,
+		pattern:   getPattern(n, nil),
+		minLength: atoi(getAttr(n, "minlength")),
+		maxLength: atoi(getAttr(n, "maxlength")),
+	}
 }

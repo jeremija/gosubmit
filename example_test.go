@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/jeremija/gosubmit"
+	. "github.com/jeremija/gosubmit"
 )
 
 func Serve(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +46,7 @@ func TestLogin(t *testing.T) {
 
 	mux.ServeHTTP(w, r)
 
-	form := gosubmit.ParseResponse(w.Result(), r.URL).FirstForm()
+	form := ParseResponse(w.Result(), r.URL).FirstForm()
 
 	for _, test := range []struct {
 		code int
@@ -57,10 +57,10 @@ func TestLogin(t *testing.T) {
 	} {
 		t.Run("password_"+test.pass, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			r, err := form.Fill().
-				Set("username", "user").
-				Set("password", test.pass).
-				NewTestRequest()
+			r, err := form.NewTestRequest(
+				Set("username", "user"),
+				Set("password", test.pass),
+			)
 
 			if err != nil {
 				t.Fatalf("Error filling in form: %s", err)
@@ -81,11 +81,11 @@ func TestFill_invalid(t *testing.T) {
 
 	mux.ServeHTTP(w, r)
 
-	form := gosubmit.ParseResponse(w.Result(), r.URL).FirstForm()
+	form := ParseResponse(w.Result(), r.URL).FirstForm()
 
-	_, err := form.Fill().
-		Set("invalid-field", "user").
-		NewTestRequest()
+	_, err := form.NewTestRequest(
+		Set("invalid-field", "user"),
+	)
 
 	re := regexp.MustCompile("Cannot find input name='invalid-field'")
 	if err == nil || !re.MatchString(err.Error()) {

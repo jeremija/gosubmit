@@ -11,68 +11,65 @@ import (
 	"net/url"
 )
 
+type Option func(f *filler) error
+
 type multipartFile struct {
 	Contents []byte
 	Name     string
 }
 
-type Filler struct {
-	context   context.Context
-	form      Form
-	values    url.Values
-	url       string
-	method    string
-	clicked   bool
-	multipart map[string][]multipartFile
-	required  map[string]struct{}
-	err       error
+type filler struct {
+	context     context.Context
+	form        Form
+	values      url.Values
+	url         string
+	method      string
+	clicked     bool
+	multipart   map[string][]multipartFile
+	required    map[string]struct{}
+	isMultipart bool
 }
 
 // Creates a new form filler. It is preferred to use Form.Fill() instead.
-func NewFiller(form Form) *Filler {
+func newFiller(form Form, opts []Option) (f *filler, err error) {
 	values := make(url.Values)
-	f := &Filler{
-		form:      form,
-		values:    values,
-		required:  make(map[string]struct{}),
-		multipart: make(map[string][]multipartFile),
+	f = &filler{
+		form:        form,
+		values:      values,
+		required:    make(map[string]struct{}),
+		multipart:   make(map[string][]multipartFile),
+		isMultipart: form.ContentType == ContentTypeMultipart,
 	}
 	f.prefill(form.Inputs)
-	return f
+	err = f.apply(opts)
+	return
 }
 
-func (f *Filler) setError(err error) {
-	if f.err == nil {
-		f.err = err
+func (f *filler) apply(opts []Option) (err error) {
+	for _, opt := range opts {
+		err = opt(f)
+		if err != nil {
+			return
+		}
 	}
+	return
 }
 
-func (f *Filler) WithContext(ctx context.Context) *Filler {
-	f.context = ctx
-	return f
-}
-
-func (f *Filler) prefill(inputs Inputs) {
+func (f *filler) prefill(inputs Inputs) {
 	for name, input := range inputs {
+		if input.Required() {
+			f.required[name] = struct{}{}
+		}
 		if input.Multipart() {
 			continue
 		}
 		for _, value := range input.Values() {
 			f.values.Add(name, value)
 		}
-		if input.Required() {
-			f.required[name] = struct{}{}
-		}
 	}
 }
 
-// Returns true if field is required, false otherwise.
-func (f *Filler) IsFieldRequired(name string) bool {
-	_, ok := f.required[name]
-	return ok
-}
-
-func (f *Filler) createRequest(test bool, method string, url string, body io.Reader) (*http.Request, error) {
+func (f *filler) createRequest(test bool, method string, url string, body io.Reader) (*http.Request, error) {
 	if test {
 		return httptest.NewRequest(method, url, body), nil
 	}
@@ -83,84 +80,86 @@ func (f *Filler) createRequest(test bool, method string, url string, body io.Rea
 	return http.NewRequestWithContext(ctx, method, url, body)
 }
 
-func (f *Filler) NewTestRequest() (*http.Request, error) {
+func (f *filler) NewTestRequest() (*http.Request, error) {
 	return f.prepareRequest(true)
 }
 
-func (f *Filler) NewRequest() (*http.Request, error) {
+func (f *filler) NewRequest() (*http.Request, error) {
 	return f.prepareRequest(false)
 }
 
 // Builds a form depeding on the enctype and creates a new test request.
-func (f *Filler) prepareRequest(test bool) (r *http.Request, err error) {
+func (f *filler) prepareRequest(test bool) (r *http.Request, err error) {
 	form := f.form
 	switch form.Method {
 	case http.MethodPost:
-		switch form.ContentType {
-		case ContentTypeForm:
-			body, _ := f.BuildPost()
+		if !f.isMultipart {
+			body, err := f.BuildPost()
+			if err != nil {
+				return nil, err
+			}
 			r, err = f.createRequest(test, "POST", form.URL, bytes.NewReader(body))
 			if err != nil {
-				f.setError(fmt.Errorf("Error creating post request: %w", err))
-				break
+				err = fmt.Errorf("Error creating post request: %w", err)
+				return nil, err
 			}
 			r.Header.Add("Content-Type", form.ContentType)
-		case ContentTypeMultipart:
-			boundary, body, _ := f.BuildMultipart()
+		} else {
+			boundary, body, err := f.BuildMultipart()
+			if err != nil {
+				return nil, err
+			}
 			r, err = f.createRequest(test, "POST", form.URL, bytes.NewReader(body))
 			if err != nil {
-				f.setError(fmt.Errorf("Error creating multipart request: %w", err))
-				break
+				return nil, fmt.Errorf("Error creating multipart request: %w", err)
+
 			}
 			r.Header.Add("Content-Type",
 				fmt.Sprintf("%s; boundary=%s", ContentTypeMultipart, boundary))
-		default:
-			f.setError(fmt.Errorf("Unknown content type: %s", form.ContentType))
 		}
 	default:
-		query, _ := f.BuildGet()
+		query, err := f.BuildGet()
+		if err != nil {
+			return nil, err
+		}
 		url := fmt.Sprintf("%s?%s", form.URL, query)
 		r, err = f.createRequest(test, "GET", url, nil)
 		if err != nil {
-			f.setError(fmt.Errorf("Error creating get request: %w", err))
+			return nil, fmt.Errorf("Error creating get request: %w", err)
 		}
 	}
 
-	return r, f.err
+	return
 }
 
 // Builds form body for a multipart request
-func (f *Filler) BuildMultipart() (boundary string, data []byte, err error) {
-	for requiredField, _ := range f.required {
-		hasTextValue := f.values.Get(requiredField) != ""
-		_, hasByteValue := f.multipart[requiredField]
-		if !hasTextValue && !hasByteValue {
-			f.setError(fmt.Errorf("Required field '%s' has no value", requiredField))
-		}
+func (f *filler) BuildMultipart() (boundary string, data []byte, err error) {
+	if err = f.validateForm(); err != nil {
+		return "", nil, err
 	}
 
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	boundary = writer.Boundary()
 	defer func() {
-		err := writer.Close()
-		if err != nil {
-			f.setError(fmt.Errorf("Error closing multipart writer: %s", err))
+		e := writer.Close()
+		if e != nil && err == nil {
+			err = fmt.Errorf("Error closing multipart writer: %s", e)
 		}
-		err = f.err
 		data = body.Bytes()
 	}()
 
 	for field, files := range f.multipart {
 		for _, file := range files {
-			w, err := writer.CreateFormFile(field, file.Name)
-			if err != nil {
-				f.setError(fmt.Errorf("Error creating multipart for field '%s': %w", field, err))
-				break
+			w, e := writer.CreateFormFile(field, file.Name)
+			if e != nil {
+				err = fmt.Errorf("Error creating multipart for field '%s': %w", field, e)
+				return
 			}
 			_, err = w.Write(file.Contents)
 			if err != nil {
-				f.setError(fmt.Errorf("Error writing multipart data for field '%s': %w", field, err))
+				err = fmt.Errorf("Error writing multipart data for field '%s': %w", field, err)
+				return
 			}
 		}
 	}
@@ -169,7 +168,7 @@ func (f *Filler) BuildMultipart() (boundary string, data []byte, err error) {
 		for _, value := range values {
 			err := writer.WriteField(field, value)
 			if err != nil {
-				f.setError(fmt.Errorf("Error writing multipart string for field '%s': %w", field, err))
+				err = fmt.Errorf("Error writing multipart string for field '%s': %w", field, err)
 			}
 		}
 	}
@@ -177,15 +176,15 @@ func (f *Filler) BuildMultipart() (boundary string, data []byte, err error) {
 	return
 }
 
-// Get the first error that occurred, if any. No need to call this if
-// NewTestRequest() or any of the methods with Build prefix are called because
-// they return it as well.
-func (f *Filler) Err() error {
-	return f.err
+func WithContext(ctx context.Context) Option {
+	return func(f *filler) error {
+		f.context = ctx
+		return nil
+	}
 }
 
 // // Adds value to all empty required fields.
-// func (f *Filler) AutoFill(defaultValue string) {
+// func (f *filler) AutoFill(defaultValue string) {
 // 	for requiredField, _ := range f.required {
 // 		value := f.values.Get(requiredField)
 // 		if value != "" {
@@ -197,124 +196,153 @@ func (f *Filler) Err() error {
 
 // Validates the form (for a plain form request). No need to call this method
 // directly if BuildForm or NewTestRequest are used.
-func (f *Filler) ValidateForm() error {
+func (f *filler) validateForm() error {
 	for requiredField, _ := range f.required {
-		value := f.values.Get(requiredField)
-		if value == "" {
-			f.setError(fmt.Errorf("ValidateForm: required field '%s' has no value", requiredField))
+		hasTextValue := f.values.Get(requiredField) != ""
+		hasByteValue := false
+		if f.isMultipart {
+			_, hasByteValue = f.multipart[requiredField]
+		}
+		if !hasTextValue && !hasByteValue {
+			return fmt.Errorf("Required field '%s' has no value", requiredField)
 		}
 	}
-	return f.err
+
+	return nil
 }
 
 // Build values for form submission
-func (f *Filler) BuildGet() (string, error) {
-	f.ValidateForm()
-	return f.values.Encode(), f.err
+func (f *filler) BuildGet() (params string, err error) {
+	err = f.validateForm()
+	params = f.values.Encode()
+	return params, err
 }
 
 // Build form body for post request
-func (f *Filler) BuildPost() ([]byte, error) {
-	f.ValidateForm()
-	return []byte(f.values.Encode()), f.err
+func (f *filler) BuildPost() (body []byte, err error) {
+	err = f.validateForm()
+	body = []byte(f.values.Encode())
+	return
+}
+
+func AutoFill() Option {
+	return func(f *filler) error {
+		for requiredField, _ := range f.required {
+			value := f.values.Get(requiredField)
+			input := f.form.Inputs[requiredField]
+			if value == "" {
+				add := false
+				for _, value := range input.AutoFill() {
+					var opt Option
+					if input.Type() == InputTypeFile {
+						opt = AddFile(requiredField, "auto-filename", []byte(value))
+					} else {
+						opt = setOrAdd(requiredField, value, add)
+					}
+					if err := opt(f); err != nil {
+						return err
+					}
+					add = true
+				}
+			}
+		}
+		return nil
+	}
 }
 
 // Adds the submit buttons name=value combination to the form submission.
 // Useful when there are two or more buttons on a form and their values
 // make a difference on how the server's going to process the form data.
-func (f *Filler) Click(buttonValue string) *Filler {
-	if f.clicked == true {
-		f.setError(fmt.Errorf("Already clicked on one button"))
-		return f
-	}
-	ok := false
-	var b Button
-	for _, button := range f.form.Buttons {
-		if button.Value == buttonValue {
-			ok = true
-			b = button
-			break
+func Click(buttonValue string) Option {
+	return func(f *filler) error {
+		if f.clicked == true {
+			return fmt.Errorf("Already clicked on one button")
 		}
+		ok := false
+		var b Button
+		for _, button := range f.form.Buttons {
+			if button.Value == buttonValue {
+				ok = true
+				b = button
+				break
+			}
+		}
+		if !ok {
+			return fmt.Errorf("Cannot find button with value: '%s'", buttonValue)
+		}
+		f.clicked = true
+		f.values.Set(b.Name, b.Value)
+		return nil
 	}
-	if !ok {
-		f.setError(fmt.Errorf("Cannot find button with value: '%s'", buttonValue))
-		return f
-	}
-	f.clicked = true
-	f.values.Set(b.Name, b.Value)
-	return f
 }
 
 // Deletes a field from the form. Useful to remove preselected values
-func (f *Filler) Reset(name string) *Filler {
-	f.values.Del(name)
-	delete(f.multipart, name)
-	return f
+func Reset(name string) Option {
+	return func(f *filler) error {
+		f.values.Del(name)
+		delete(f.multipart, name)
+		return nil
+	}
 }
 
 // Adds a name=value pair to the form. If there is an empty value it will
 // be replaced, otherwise a second value will be added, but only if the
 // element supports multiple values, like checkboxes or <select multiple>
 // elements.
-func (f *Filler) Add(name string, value string) *Filler {
-	return f.setOrAdd(name, value, true)
+func Add(name string, value string) Option {
+	return setOrAdd(name, value, true)
 }
 
 // Set a name=value pair to the form and replace any set value(s).
-func (f *Filler) Set(name string, value string) *Filler {
-	return f.setOrAdd(name, value, false)
+func Set(name string, value string) Option {
+	return setOrAdd(name, value, false)
 }
 
-func (f *Filler) Get(name string) string {
-	return f.values.Get(name)
-}
-
-func (f *Filler) setOrAdd(name string, value string, add bool) *Filler {
-	input, ok := f.form.Inputs[name]
-	if !ok {
-		f.setError(fmt.Errorf("Cannot find input name='%s'", name))
-		return f
-	}
-	result, ok := input.Fill(value)
-	if !ok {
-		f.setError(fmt.Errorf("Value '%s' for input name='%s' is invalid", value, name))
-		return f
-	}
-
-	values, ok := f.values[name]
-	hasEmptyValue := ok && len(values) == 1 && values[0] == ""
-
-	if add && !hasEmptyValue {
-		if f.values.Get(name) != "" && !input.Multiple() {
-			f.setError(fmt.Errorf("Cannot fill input name='%s'  twice (multiple=false)", name))
-			return f
+func setOrAdd(name string, value string, add bool) Option {
+	return func(f *filler) error {
+		input, ok := f.form.Inputs[name]
+		if !ok {
+			return fmt.Errorf("Cannot find input name='%s'", name)
 		}
-		f.values.Add(name, result)
-	} else {
-		f.values.Set(name, result)
+		result, ok := input.Fill(value)
+		if !ok {
+			return fmt.Errorf("Value '%s' for input name='%s' is invalid", value, name)
+		}
+
+		values, ok := f.values[name]
+		hasEmptyValue := ok && len(values) == 1 && values[0] == ""
+
+		if add && !hasEmptyValue {
+			if f.values.Get(name) != "" && !input.Multiple() {
+				return fmt.Errorf("Cannot fill input name='%s'  twice (multiple=false)", name)
+			}
+			f.values.Add(name, result)
+		} else {
+			f.values.Set(name, result)
+		}
+		return nil
 	}
-	return f
 }
 
 // Fill data for multipart request
-func (f *Filler) AddFile(fieldname string, filename string, contents []byte) *Filler {
-	input, ok := f.form.Inputs[fieldname]
-	if !ok {
-		f.setError(fmt.Errorf("Cannot find input fieldname='%s'", fieldname))
-		return f
+func AddFile(fieldname string, filename string, contents []byte) Option {
+	return func(f *filler) error {
+		input, ok := f.form.Inputs[fieldname]
+		if !ok {
+			return fmt.Errorf("Cannot find input fieldname='%s'", fieldname)
+		}
+		_, ok = input.(FileInput)
+		if !ok {
+			return fmt.Errorf("Cannot fill bytes - input fieldname='%s' is not a file input", fieldname)
+		}
+		filesArray, ok := f.multipart[fieldname]
+		if !ok {
+			filesArray = []multipartFile{}
+		}
+		f.multipart[fieldname] = append(filesArray, multipartFile{
+			Name:     filename,
+			Contents: contents,
+		})
+		return nil
 	}
-	_, ok = input.(FileInput)
-	if !ok {
-		f.setError(fmt.Errorf("Cannot fill bytes - input fieldname='%s' is not a file input", fieldname))
-		return f
-	}
-	filesArray, ok := f.multipart[fieldname]
-	if !ok {
-		filesArray = []multipartFile{}
-	}
-	f.multipart[fieldname] = append(filesArray, multipartFile{
-		Name:     filename,
-		Contents: contents,
-	})
-	return f
 }

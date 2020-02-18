@@ -12,7 +12,7 @@ package gosubmit_test
 
 import (
 	// TODO import app
-	"github.com/jeremija/gosubmit"
+	. "github.com/jeremija/gosubmit"
 
 	"net/http"
 	"net/http/httptest"
@@ -24,11 +24,10 @@ func TestLogin(t *testing.T) {
 
 	app.ServeHTTP(w, r)
 
-	forms, _ := gosubmit.ParseResponse(w.Result(), r.URL)
-	r, err := forms[0].Fill().
-		Set("username", "user").
-		Set("password", "password").
-		NewTestRequest()
+	r, err := ParseResponse(w.Result(), r.URL).FirstForm().NewTestRequest(
+		Set("username", "user"),
+		Set("password", "password"),
+	)
 
 	if err != nil {
 		t.Fatalf("Error filling form: %s", err)
@@ -43,19 +42,37 @@ func TestLogin(t *testing.T) {
 }
 ```
 
-Currently supported elements:
+Autofilling of all required input fields is supported:
 
-- input[type=text]
-- input[type=number]
-- input[type=email]
-- input[type=checkbox]
-- input[type=radio]
-- input[type=hidden]
-- textarea
-- select
-- select[multiple]
-- button[type=submit] with name and value
-- input[type=submit] with name and value
+```golang
+r, err := ParseResponse(w.Result(), r.URL).FirstForm().NewTestRequest(
+	Autofill(),
+)
+```
+
+Elements that include a pattern attribute for validation will not be autofilled
+and have to be filled in manually. For example:
+
+r, err := ParseResponse(w.Result(), r.URL).FirstForm().NewTestRequest(
+	Autofill(),
+	Set("validatedURL", "https://www.example.com"),
+)
+
+# Supported elements:
+
+- `input[type=checkbox]`
+- `input[type=date]`
+- `input[type=email]`
+- `input[type=hidden]`
+- `input[type=number]`
+- `input[type=radio]`
+- `input[type=text]`
+- `input[type=url]`
+- `textarea`
+- `select`
+- `select[multiple]`
+- `button[type=submit]` with name and value
+- `input[type=submit]` with name and value
 
 If an input element is not on this list, it will default to text input.
 
