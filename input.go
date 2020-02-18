@@ -73,16 +73,16 @@ func (f FileInput) Multipart() bool {
 
 type TextInput struct {
 	anyInput
-	validator *regexp.Regexp
+	pattern *regexp.Regexp
 }
 
 func (i TextInput) Fill(val string) (value string, ok bool) {
 	ok = true
 	value = val
-	if i.validator == nil {
+	if i.pattern == nil {
 		return
 	}
-	ok = i.validator.MatchString(value)
+	ok = i.pattern.MatchString(value)
 	return
 }
 

@@ -12,17 +12,12 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/jeremija/gosubmit"
+	. "github.com/jeremija/gosubmit"
 )
 
 const (
 	defaultMaxMemory = 32 << 20 // 32 MB
 )
-
-// func SimpleFormHandler(w http.ResponseWriter, r *http.Request) *http.Request {
-// 	r.ParseMultipartForm(defaultMaxMemory)
-// 	return r
-// }
 
 func mustOpen(t *testing.T, filename string) io.ReadCloser {
 	f, err := os.Open(filename)
@@ -32,19 +27,19 @@ func mustOpen(t *testing.T, filename string) io.ReadCloser {
 	return f
 }
 
-func TestParseFill_simple_get(t *testing.T) {
+func TestNewTestRequest_simple_get(t *testing.T) {
 	f := mustOpen(t, "./forms/simple.html")
 	defer f.Close()
 
-	form := gosubmit.ParseWithURL(f, "/test").FindForm("name", "simple-get")
+	form := ParseWithURL(f, "/test").FindForm("name", "simple-get")
 
 	if form.URL != "/test" {
 		t.Fatalf("Expected form url to fallback to /test, but was %s", form.URL)
 	}
 
-	r, err := form.Fill().
-		Add("firstName", "John").
-		NewTestRequest()
+	r, err := form.NewTestRequest(
+		Add("firstName", "John"),
+	)
 
 	if err != nil {
 		t.Fatalf("Could not fill form and create test request: %s", err)
@@ -67,19 +62,33 @@ func TestParseFill_simple_get(t *testing.T) {
 	}
 }
 
-func TestParseFill_simple_post(t *testing.T) {
+func TestFormValidate(t *testing.T) {
 	f := mustOpen(t, "./forms/simple.html")
 	defer f.Close()
 
-	form := gosubmit.ParseWithURL(f, "/test").FindForm("name", "simple-post")
+	err := ParseWithURL(f, "/test").FindForm("name", "simple-get").Validate(
+		Set("a", "b"),
+	)
+
+	expected := "Cannot find input name='a'"
+	if err == nil || err.Error() != expected {
+		t.Errorf("Expected an error message: '%s', but got '%s'", expected, err.Error())
+	}
+}
+
+func TestNewTestRequest_simple_post(t *testing.T) {
+	f := mustOpen(t, "./forms/simple.html")
+	defer f.Close()
+
+	form := ParseWithURL(f, "/test").FindForm("name", "simple-post")
 
 	if form.URL != "/mytest" {
 		t.Fatalf("Expected form url to fallback to /mytest, but was %s", form.URL)
 	}
 
-	r, err := form.Fill().
-		Add("firstName", "John").
-		NewTestRequest()
+	r, err := form.NewTestRequest(
+		Add("firstName", "John"),
+	)
 
 	if err != nil {
 		t.Fatalf("Could not fill form and create test request: %s", err)
@@ -93,9 +102,9 @@ func TestParseFill_simple_post(t *testing.T) {
 		t.Errorf("Expected url path to be /test but was: %s", r.URL.EscapedPath())
 	}
 
-	if r.Header.Get("Content-Type") != gosubmit.ContentTypeForm {
+	if r.Header.Get("Content-Type") != ContentTypeForm {
 		t.Errorf("Expepcted content type to be %s, but was %s",
-			gosubmit.ContentTypeForm,
+			ContentTypeForm,
 			r.Header.Get("Content-Type"),
 		)
 	}
@@ -109,26 +118,26 @@ func TestParseFill_simple_post(t *testing.T) {
 	}
 }
 
-func TestParseFill_multipart(t *testing.T) {
+func TestNewTestRequest_multipart(t *testing.T) {
 	f := mustOpen(t, "./forms/big.html")
 	defer f.Close()
 
-	form := gosubmit.Parse(f).FirstForm()
+	form := Parse(f).FirstForm()
 
 	pictureContents := []byte("test-file")
 
-	r, err := form.Fill().
-		Set("sel1", form.GetOptionsFor("sel1")[0]).
-		Add("sel2", "5").
-		// Add("chk", form.GetOptionsFor("chk")[0]).
-		Add("chk", form.GetOptionsFor("chk")[1]).
-		Set("contact", form.GetOptionsFor("contact")[1]).
-		Set("email", "test@example.com").
-		Set("firstName", "Test").
-		Set("age", "33").
-		AddFile("profile", "picture.jpg", pictureContents).
-		Click("Save 1").
-		NewTestRequest()
+	r, err := form.NewTestRequest(
+		Set("sel1", form.GetOptionsFor("sel1")[0]),
+		Add("sel2", "5"),
+		// Add("chk", form.GetOptionsFor("chk")[0]),
+		Add("chk", form.GetOptionsFor("chk")[1]),
+		Set("contact", form.GetOptionsFor("contact")[1]),
+		Set("email", "test@example.com"),
+		Set("firstName", "Test"),
+		Set("age", "33"),
+		AddFile("profile", "picture.jpg", pictureContents),
+		Click("Save 1"),
+	)
 
 	if err != nil {
 		t.Fatalf("Error creating test request: %s", err)
@@ -179,15 +188,43 @@ func TestParseFill_multipart(t *testing.T) {
 	}
 }
 
-func TestFiller_MissingField(t *testing.T) {
+func TestMultipartParams_invalid(t *testing.T) {
+	f := mustOpen(t, "./forms/big.html")
+	defer f.Close()
+
+	form := Parse(f).FirstForm()
+
+	_, _, err := form.MultipartParams(
+		Set("sel1", form.GetOptionsFor("sel1")[0]),
+	)
+
+	re := regexp.MustCompile("Required field.*has no value")
+	if err == nil || !re.MatchString(err.Error()) {
+		t.Errorf("Expected error to match '%s', but was '%s'", re, err.Error())
+	}
+}
+
+func TestNewRequest_invalid(t *testing.T) {
 	f := mustOpen(t, "./forms/simple.html")
 	defer f.Close()
 
-	_, err := gosubmit.ParseWithURL(f, "/test").FirstForm().
-		Fill().
-		NewRequest()
+	_, err := ParseWithURL(f, "/test").FirstForm().NewRequest(
+		Set("a", "b"),
+	)
 
-	re := regexp.MustCompile("required field 'firstName' has no value")
+	re := regexp.MustCompile("Cannot find input name='a'")
+	if err == nil || !re.MatchString(err.Error()) {
+		t.Fatalf("Expected an error %s, but got: %s", re, err)
+	}
+}
+
+func TestNewRequest_missing(t *testing.T) {
+	f := mustOpen(t, "./forms/simple.html")
+	defer f.Close()
+
+	_, err := ParseWithURL(f, "/test").FirstForm().NewRequest()
+
+	re := regexp.MustCompile("Required field 'firstName' has no value")
 	if err == nil || !re.MatchString(err.Error()) {
 		t.Fatalf("Expected an error %s, but got: %s", re, err)
 	}
@@ -197,25 +234,22 @@ func TestFiller_Reset(t *testing.T) {
 	f := mustOpen(t, "./forms/simple.html")
 	defer f.Close()
 
-	_, err := gosubmit.ParseWithURL(f, "/test").FirstForm().
-		Fill().
-		Set("firstName", "a").
-		Reset("firstName").
-		BuildPost()
+	_, err := ParseWithURL(f, "/test").FirstForm().PostParams(
+		Set("firstName", "a"),
+		Reset("firstName"),
+	)
 
-	re := regexp.MustCompile("required field 'firstName' has no value")
+	re := regexp.MustCompile("Required field 'firstName' has no value")
 	if err == nil || !re.MatchString(err.Error()) {
 		t.Fatalf("Expected an error %s, but got: %s", re, err)
 	}
 }
 
-func TestFiller_IsRequiredField(t *testing.T) {
+func TestFiller_IsRequired(t *testing.T) {
 	f := mustOpen(t, "./forms/simple.html")
 	defer f.Close()
 
-	isRequired := gosubmit.ParseWithURL(f, "/test").FirstForm().
-		Fill().
-		IsFieldRequired("firstName")
+	isRequired := ParseWithURL(f, "/test").FirstForm().IsRequired("firstName")
 	if isRequired == false {
 		t.Fatalf("Field 'firstName' is should be required, but is not")
 	}
@@ -226,11 +260,10 @@ func TestFiller_NewRequest(t *testing.T) {
 	defer f.Close()
 
 	ctx := context.WithValue(context.Background(), "a", "b")
-	r, err := gosubmit.ParseWithURL(f, "/test").FirstForm().
-		Fill().
-		Set("firstName", "John").
-		WithContext(ctx).
-		NewRequest()
+	r, err := ParseWithURL(f, "/test").FirstForm().NewRequest(
+		Set("firstName", "John"),
+		WithContext(ctx),
+	)
 
 	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
@@ -245,30 +278,35 @@ func TestFiller_NewRequest(t *testing.T) {
 	}
 }
 
-func TestFiller_Err(t *testing.T) {
+func TestPostParams_error(t *testing.T) {
 	f := mustOpen(t, "./forms/simple.html")
 	defer f.Close()
-	err := gosubmit.Parse(f).FirstForm().Fill().Set("a", "b").Err()
+	_, err := Parse(f).FirstForm().PostParams(Set("a", "b"))
 	expected := "Cannot find input name='a'"
 	if err == nil || err.Error() != expected {
 		t.Errorf("Expected an error '%s' but got '%s'", expected, err)
 	}
 }
 
-func TestFiller_Get(t *testing.T) {
+func TestGetParams_error(t *testing.T) {
 	f := mustOpen(t, "./forms/simple.html")
 	defer f.Close()
-	filler := gosubmit.Parse(f).FirstForm().Fill()
-	firstName := filler.Get("firstName")
-	if firstName != "" {
-		t.Errorf("firstName should be set to '', but was '%s'", firstName)
+	_, err := Parse(f).FirstForm().GetParams(Set("a", "b"))
+	expected := "Cannot find input name='a'"
+	if err == nil || err.Error() != expected {
+		t.Errorf("Expected an error '%s' but got '%s'", expected, err)
 	}
-	filler.Set("firstName", "bla")
-	firstName = filler.Get("firstName")
-	if firstName != "bla" {
-		t.Errorf("firstName should be set to 'bla', but was '%s'", firstName)
-	}
-	if err := filler.Err(); err != nil {
+}
+
+func TestGetParams_ok(t *testing.T) {
+	f := mustOpen(t, "./forms/simple.html")
+	defer f.Close()
+	params, err := Parse(f).FirstForm().GetParams(Set("firstName", "b"))
+	if err != nil {
 		t.Errorf("Unexpected error: %s", err)
+	}
+	expected := "firstName=b"
+	if params != expected {
+		t.Errorf("Expected params to be '%s' but was '%s'", expected, params)
 	}
 }

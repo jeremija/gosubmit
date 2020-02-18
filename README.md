@@ -12,7 +12,7 @@ package gosubmit_test
 
 import (
 	// TODO import app
-	"github.com/jeremija/gosubmit"
+	. "github.com/jeremija/gosubmit"
 
 	"net/http"
 	"net/http/httptest"
@@ -24,11 +24,10 @@ func TestLogin(t *testing.T) {
 
 	app.ServeHTTP(w, r)
 
-	forms, _ := gosubmit.ParseResponse(w.Result(), r.URL)
-	r, err := forms[0].Fill().
-		Set("username", "user").
-		Set("password", "password").
-		NewTestRequest()
+	r, err := ParseResponse(w.Result(), r.URL).FirstForm().NewTestRequest(
+		Set("username", "user"),
+		Set("password", "password"),
+	)
 
 	if err != nil {
 		t.Fatalf("Error filling form: %s", err)

@@ -182,18 +182,18 @@ func createForm(n *html.Node) (form Form) {
 				})
 			case "email":
 				inputs[name] = TextInput{
-					anyInput:  anyInput,
-					validator: PatternEmail,
+					anyInput: anyInput,
+					pattern:  PatternEmail,
 				}
 			case "number":
 				inputs[name] = TextInput{
-					anyInput:  anyInput,
-					validator: PatternNumber,
+					anyInput: anyInput,
+					pattern:  PatternNumber,
 				}
 			default:
 				inputs[name] = TextInput{
-					anyInput:  anyInput,
-					validator: getPattern(n),
+					anyInput: anyInput,
+					pattern:  getPattern(n),
 				}
 			}
 		case "textarea":
@@ -203,7 +203,7 @@ func createForm(n *html.Node) (form Form) {
 					inputType: "textarea",
 					values:    []string{getText(n)},
 				},
-				validator: getPattern(n),
+				pattern: getPattern(n),
 			}
 		case "button":
 			if inputType == "submit" {

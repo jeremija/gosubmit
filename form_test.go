@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/jeremija/gosubmit"
+	. "github.com/jeremija/gosubmit"
 )
 
 type errReader struct {
@@ -18,7 +18,7 @@ func (r *errReader) Read(b []byte) (n int, err error) {
 
 func TestParse_error(t *testing.T) {
 	r := &errReader{Reader: bytes.NewReader([]byte("</dflakugk>"))}
-	doc := gosubmit.Parse(r)
+	doc := Parse(r)
 	if doc.Err() == nil {
 		t.Error("Expected parsing error, but got nil")
 	}
@@ -26,7 +26,7 @@ func TestParse_error(t *testing.T) {
 
 func TestParse_Find(t *testing.T) {
 	r := bytes.NewReader([]byte("<!DOCTYPE html><html></html>"))
-	doc := gosubmit.Parse(r)
+	doc := Parse(r)
 	if err := doc.Err(); err != nil {
 		t.Fatalf("Unexpected Parse error: %s", err)
 	}
@@ -47,7 +47,7 @@ func TestParse_GetOptionsFor(t *testing.T) {
 </form>
 </html>
 `))
-	doc := gosubmit.Parse(r)
+	doc := Parse(r)
 	if err := doc.Err(); err != nil {
 		t.Fatalf("Unexpected Parse error: %s", err)
 	}
@@ -64,11 +64,10 @@ func TestParse_GetOptionsFor(t *testing.T) {
 }
 
 func TestFirstForm(t *testing.T) {
-	var doc gosubmit.Document
-	_, err := doc.FirstForm().
-		Fill().
-		Set("a", "b").
-		NewTestRequest()
+	var doc Document
+	_, err := doc.FirstForm().NewTestRequest(
+		Set("a", "b"),
+	)
 
 	if err == nil || err.Error() != "No forms found" {
 		t.Errorf("Expected an error 'No forms found', but got %s", err)
