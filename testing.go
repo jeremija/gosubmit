@@ -9,19 +9,19 @@ type test interface {
 	Helper()
 }
 
-type testingForm struct {
+type TestingForm struct {
 	form Form
 	t    test
 }
 
-func (f testingForm) assertNoError(err error) {
+func (f TestingForm) assertNoError(err error) {
 	f.t.Helper()
 	if err != nil {
 		f.t.Fatalf("An error occurred: %s", err)
 	}
 }
 
-func (f testingForm) NewTestRequest(opts ...Option) *http.Request {
+func (f TestingForm) NewTestRequest(opts ...Option) *http.Request {
 	f.t.Helper()
 	r, err := f.form.NewTestRequest(opts...)
 	f.assertNoError(err)

@@ -152,6 +152,6 @@ func (f Form) GetOptionsFor(name string) (options []string) {
 	return input.Options()
 }
 
-func (f Form) Testing(t test) testingForm {
-	return testingForm{form: f, t: t}
+func (f Form) Testing(t test) TestingForm {
+	return TestingForm{form: f, t: t}
 }
