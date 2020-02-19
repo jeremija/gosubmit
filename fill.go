@@ -333,6 +333,14 @@ func setOrAdd(name string, value string, add bool) Option {
 	}
 }
 
+// Set a value without validation
+func UnsafeSet(name string, value string) Option {
+	return func(f *filler) error {
+		f.values.Set(name, value)
+		return nil
+	}
+}
+
 // Fill data for multipart request
 func AddFile(fieldname string, filename string, contents []byte) Option {
 	return func(f *filler) error {
