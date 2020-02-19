@@ -11,6 +11,8 @@ type errorContainer struct {
 	err error
 }
 
+type Forms []Form
+
 func (e *errorContainer) setError(err error) {
 	if e.err == nil {
 		e.err = err
@@ -23,13 +25,28 @@ func (e *errorContainer) Err() error {
 
 type Document struct {
 	errorContainer
-	forms []Form
+	forms Forms
 }
 
 type Inputs map[string]Input
 
-func (d Document) Forms() []Form {
+func (d Document) Forms() Forms {
 	return d.forms
+}
+
+func (forms Forms) First() (f Form) {
+	if len(forms) == 0 {
+		return
+	}
+	return forms[0]
+}
+
+func (forms Forms) Last() (f Form) {
+	size := len(forms)
+	if size == 0 {
+		return
+	}
+	return forms[size-1]
 }
 
 func (d Document) FirstForm() (form Form) {
@@ -54,10 +71,22 @@ func (d Document) FindForm(attrKey string, attrValue string) (form Form) {
 	return
 }
 
+func (d Document) FindFormsByClass(className string) (forms Forms) {
+	for _, f := range d.forms {
+		for _, class := range f.ClassList {
+			if class == className {
+				forms = append(forms, f)
+			}
+		}
+	}
+	return
+}
+
 type Form struct {
 	errorContainer
 	// All html attributes of the form. Used to find the form by attribute
-	Attr []html.Attribute
+	Attr      []html.Attribute
+	ClassList []string
 	// Value of Enctype attribute, default is application/x-www-form-urlencoded.
 	// For forms with file uploads it should be multipart/form-data.
 	ContentType string

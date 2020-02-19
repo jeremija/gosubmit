@@ -258,6 +258,7 @@ func createForm(n *html.Node) (form Form) {
 	if form.Method == "" {
 		form.Method = http.MethodGet
 	}
+	form.ClassList = strings.Split(getAttr(n, "class"), " ")
 	form.URL = getAttr(n, "action")
 	form.Attr = n.Attr
 	return

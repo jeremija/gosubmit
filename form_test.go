@@ -3,6 +3,7 @@ package gosubmit_test
 import (
 	"bytes"
 	"fmt"
+	"reflect"
 	"testing"
 
 	. "github.com/jeremija/gosubmit"
@@ -34,6 +35,44 @@ func TestParse_Find(t *testing.T) {
 	expected := "No form with attributes name='test' found"
 	if err := form.Err(); err == nil || err.Error() != expected {
 		t.Fatalf("Expected no error '%s' but got %s", expected, err)
+	}
+}
+func TestFindFormsByClass(t *testing.T) {
+	r := bytes.NewReader([]byte(`<!DOCTYPE html>
+<html>
+<body>
+<form class="a b">
+<input type="checkbox" name="one-chk" value="two" required>
+</form>
+<form class="b c">
+<input type="checkbox" name="two-chk" value="one">
+</form>
+</html>
+`))
+	doc := Parse(r)
+	if err := doc.Err(); err != nil {
+		t.Fatalf("Unexpected Parse error: %s", err)
+	}
+	forms := doc.FindFormsByClass("a")
+	if size := len(forms); size != 1 {
+		t.Fatalf("Expected to find one form with class a, but got: %d", size)
+	}
+	if !reflect.DeepEqual(forms.First(), forms.Last()) {
+		t.Fatalf("Expected first and last to be same")
+	}
+	forms = doc.FindFormsByClass("b")
+	if size := len(forms); size != 2 {
+		t.Fatalf("Expected to find two forms with class b, but got: %d", size)
+	}
+	if reflect.DeepEqual(forms.First(), forms.Last()) {
+		t.Fatalf("Expected forms to be different")
+	}
+	forms = doc.FindFormsByClass("c")
+	if size := len(forms); size != 1 {
+		t.Fatalf("Expected to find two forms with class c, but got: %d", size)
+	}
+	if !reflect.DeepEqual(forms.First(), forms.Last()) {
+		t.Fatalf("Expected first and last to be same")
 	}
 }
 
