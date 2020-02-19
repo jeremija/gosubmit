@@ -10,6 +10,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 
 	. "github.com/jeremija/gosubmit"
@@ -25,6 +26,18 @@ func mustOpen(t *testing.T, filename string) io.ReadCloser {
 		t.Fatalf("Error opening file: %s (reason: %s)", filename, err)
 	}
 	return f
+}
+
+func TestNewTestRequest_recover(t *testing.T) {
+	var f Form
+	_, err := f.NewTestRequest()
+	if err == nil {
+		t.Fatal("Expected an error, but got nil")
+	}
+	expected := "Caught panic when creating request"
+	if msg := err.Error(); !strings.Contains(msg, expected) {
+		t.Errorf("Expected error to contain '%s', but was '%s'", expected, msg)
+	}
 }
 
 func TestNewTestRequest_simple_get(t *testing.T) {

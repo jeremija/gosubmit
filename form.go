@@ -67,6 +67,7 @@ func (d Document) FindForm(attrKey string, attrValue string) (form Form) {
 		}
 	}
 
+	form.Inputs = make(Inputs)
 	form.setError(fmt.Errorf("No form with attributes %s='%s' found", attrKey, attrValue))
 	return
 }

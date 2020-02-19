@@ -69,15 +69,24 @@ func (f *filler) prefill(inputs Inputs) {
 	}
 }
 
-func (f *filler) createRequest(test bool, method string, url string, body io.Reader) (*http.Request, error) {
+func (f *filler) createRequest(test bool, method string, url string, body io.Reader) (r *http.Request, err error) {
+	defer func() {
+		p := recover()
+		if p != nil {
+			err = fmt.Errorf("Caught panic when creating request: %s", p)
+		}
+		return
+	}()
 	if test {
-		return httptest.NewRequest(method, url, body), nil
+		r = httptest.NewRequest(method, url, body)
+		return
 	}
 	ctx := f.context
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return http.NewRequestWithContext(ctx, method, url, body)
+	r, err = http.NewRequestWithContext(ctx, method, url, body)
+	return
 }
 
 func (f *filler) NewTestRequest() (*http.Request, error) {
