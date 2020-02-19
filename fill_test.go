@@ -40,6 +40,21 @@ func TestNewTestRequest_recover(t *testing.T) {
 	}
 }
 
+func TestNewRequest_no_forms_found(t *testing.T) {
+	var f Forms
+
+	for _, form := range []Form{f.First(), f.Last()} {
+		_, err := form.NewTestRequest()
+		if err == nil {
+			t.Fatal("Expected an error, but got nil")
+		}
+		expected := "No forms found"
+		if msg := err.Error(); msg != expected {
+			t.Errorf("Expected error to contain '%s', but was '%s'", expected, msg)
+		}
+	}
+}
+
 func TestNewTestRequest_simple_get(t *testing.T) {
 	f := mustOpen(t, "./forms/simple.html")
 	defer f.Close()

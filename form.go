@@ -34,28 +34,27 @@ func (d Document) Forms() Forms {
 	return d.forms
 }
 
-func (forms Forms) First() (f Form) {
+func (forms Forms) First() (form Form) {
 	if len(forms) == 0 {
+		form.Inputs = make(Inputs)
+		form.setError(fmt.Errorf("No forms found"))
 		return
 	}
 	return forms[0]
 }
 
-func (forms Forms) Last() (f Form) {
+func (forms Forms) Last() (form Form) {
 	size := len(forms)
 	if size == 0 {
+		form.Inputs = make(Inputs)
+		form.setError(fmt.Errorf("No forms found"))
 		return
 	}
 	return forms[size-1]
 }
 
 func (d Document) FirstForm() (form Form) {
-	if len(d.forms) > 0 {
-		return d.forms[0]
-	}
-	form.URL = "/"
-	form.setError(fmt.Errorf("No forms found"))
-	return
+	return d.forms.First()
 }
 
 func (d Document) FindForm(attrKey string, attrValue string) (form Form) {
