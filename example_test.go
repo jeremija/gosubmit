@@ -52,7 +52,7 @@ func TestLogin(t *testing.T) {
 		code int
 		pass string
 	}{
-		// {http.StatusForbidden, "invalid-password"},
+		{http.StatusForbidden, "invalid-password"},
 		{http.StatusOK, "pass"},
 	} {
 		t.Run("password_"+test.pass, func(t *testing.T) {
