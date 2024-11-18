@@ -119,6 +119,10 @@ func (i TextInput) AutoFill() (value []string) {
 		length = i.minLength
 		return []string{randomString(length)}
 	}
+	if i.maxLength > 0 {
+		length = i.maxLength
+		return []string{randomString(length)}
+	}
 	return i.anyInput.AutoFill()
 }
 
