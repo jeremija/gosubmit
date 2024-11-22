@@ -239,6 +239,7 @@ func TestAutoFill(t *testing.T) {
 	}
 
 	randomLastName := r.FormValue("lastName")
+	randomCaptcha := r.FormValue("captcha")
 
 	expectedForm := url.Values{
 		"sel2":      []string{"4", "5", "6"},
@@ -247,6 +248,7 @@ func TestAutoFill(t *testing.T) {
 		"email":     []string{AutoFillEmail},
 		"firstName": []string{"John"},
 		"age":       []string{"18"},
+		"captcha":   []string{randomCaptcha},
 		"lastName":  []string{randomLastName},
 		"someDate":  []string{AutoFillDate},
 		"website":   []string{AutoFillURL},
@@ -271,6 +273,9 @@ func TestAutoFill(t *testing.T) {
 	fileData, err := ioutil.ReadAll(file)
 	if !bytes.Equal(AutoFillFile, fileData) {
 		t.Errorf("Picture contents do not match: %s vs %s", AutoFillFile, fileData)
+	}
+	if len(randomCaptcha) != 5 {
+		t.Errorf("Expected captcha to be 5 characters long, but was %d", len(randomCaptcha))
 	}
 }
 
